@@ -1,0 +1,21 @@
+#!/bin/sh
+
+message_file=$1
+if [ -z "$message_file" ] || [ ! -f "$message_file" ]; then
+    echo "commit-msg hook error: message file is missing" >&2
+    exit 2
+fi
+
+IFS= read -r first_line < "$message_file"
+if printf '%s\n' "$first_line" | grep -Eq '^(update|fix|new|archive|improve|docs|test|chore): .+'; then
+    exit 0
+fi
+
+# Git-generated messages are allowed for non-squash merge/revert operations.
+if printf '%s\n' "$first_line" | grep -Eq '^(Merge |Revert ")'; then
+    exit 0
+fi
+
+echo "invalid commit message: $first_line" >&2
+echo "expected: update|fix|new|archive|improve|docs|test|chore: description" >&2
+exit 1

@@ -1,0 +1,22 @@
+#!/bin/sh
+# PCA publisher/privacy pre-push gate: delegates to pre-push.ps1, forwarding git's own
+# arguments: $1 = actual push remote NAME, $2 = resolved remote URL (git 2.49).
+# Interpreter selection (single source of truth stays in pre-push.ps1):
+#   Linux/macOS/BSD -> pwsh (PowerShell 7); Windows -> powershell.exe (unchanged
+#   historical behavior). Fail-closed if no interpreter is available.
+SELF="$(dirname "$0")"
+case "$(uname -s 2>/dev/null || echo Windows)" in
+  Linux|Darwin|FreeBSD|OpenBSD|NetBSD)
+    if command -v pwsh >/dev/null 2>&1; then
+      exec pwsh -NoProfile -NonInteractive -File "$SELF/pre-push.ps1" "$@"
+    fi
+    ;;
+esac
+if command -v powershell.exe >/dev/null 2>&1; then
+  exec powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$SELF/pre-push.ps1" "$@"
+fi
+if command -v pwsh >/dev/null 2>&1; then
+  exec pwsh -NoProfile -NonInteractive -File "$SELF/pre-push.ps1" "$@"
+fi
+echo "PCA pre-push gate: no PowerShell interpreter (powershell.exe/pwsh) found; push blocked (fail-closed)." >&2
+exit 1
