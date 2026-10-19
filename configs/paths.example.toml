@@ -1,0 +1,4 @@
+# Copy to paths.local.toml; paths are local inputs for future implementation.
+input_release = "data/inputs/release-v1"
+evaluation_reference = "evaluation_reference"
+run_root = "runs"

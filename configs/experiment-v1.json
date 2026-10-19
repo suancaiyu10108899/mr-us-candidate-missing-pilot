@@ -1,0 +1,112 @@
+{
+  "protocol_version": "1.0",
+  "schema_version": "experiment-v1",
+  "state": "BOOTSTRAP_PROTOCOL",
+  "scientific_runs": "NOT_RUN",
+  "matrix_rows": 14,
+  "release_id": null,
+  "methods": [
+    "MNN",
+    "MNN_RATIO"
+  ],
+  "conditions": [
+    {
+      "condition_id": "FULL",
+      "keep_count": 64,
+      "remove_count": 0
+    },
+    {
+      "condition_id": "RAND_1",
+      "keep_count": 48,
+      "remove_count": 16,
+      "rng": "PCG64",
+      "seed": 2026101001,
+      "basis": "stable_id_ascending"
+    },
+    {
+      "condition_id": "RAND_2",
+      "keep_count": 48,
+      "remove_count": 16,
+      "rng": "PCG64",
+      "seed": 2026101002,
+      "basis": "stable_id_ascending"
+    },
+    {
+      "condition_id": "RAND_3",
+      "keep_count": 48,
+      "remove_count": 16,
+      "rng": "PCG64",
+      "seed": 2026101003,
+      "basis": "stable_id_ascending"
+    },
+    {
+      "condition_id": "SPATIAL_I",
+      "keep_count": 48,
+      "remove_count": 16,
+      "axis": "I",
+      "order": "coordinate_descending_then_id_ascending"
+    },
+    {
+      "condition_id": "SPATIAL_J",
+      "keep_count": 48,
+      "remove_count": 16,
+      "axis": "J",
+      "order": "coordinate_descending_then_id_ascending"
+    },
+    {
+      "condition_id": "SPATIAL_K",
+      "keep_count": 48,
+      "remove_count": 16,
+      "axis": "K",
+      "order": "coordinate_descending_then_id_ascending"
+    }
+  ],
+  "matching": {
+    "dtype": "float64",
+    "source_dtype": "float32",
+    "query_count": 64,
+    "dimension": 512,
+    "distance": "L2",
+    "renormalize": false,
+    "eps": 1e-12,
+    "tie_rule": "distance_minus_min_le_eps",
+    "ratio_threshold": 0.8,
+    "ratio_comparison": "strict_lt",
+    "reverse_ratio": false,
+    "reverse_query_set": "all_64"
+  },
+  "geometry": {
+    "direction": "US_TO_MR",
+    "unit": "index_unit",
+    "rng": "PCG64",
+    "seed": 20261005,
+    "max_iterations": 256,
+    "sample_size": 3,
+    "minimum_rank": 2,
+    "rank_tolerance": "smax*max(n,3)*float64_eps",
+    "inlier_threshold": 1.0,
+    "inlier_comparison": "le",
+    "minimum_final_inliers": 4,
+    "reflection_allowed": false,
+    "refit": "once_then_recompute_inliers_and_rank",
+    "tie_break": "inlier_count_then_inlier_squared_error_then_first_sample"
+  },
+  "evaluation": {
+    "pair_correct_tolerance": 0.5,
+    "pair_correct_comparison": "le",
+    "probe_count": 8,
+    "matrix_tolerance": 1e-06,
+    "baseline_pair_atol": 1e-10,
+    "baseline_pair_rtol": 1e-08,
+    "baseline_transform_probe_max": 1e-05,
+    "zero_denominator": null
+  },
+  "freeze_requires": [
+    "verified_input_release_and_permission",
+    "actual_candidate_id_lists",
+    "B_C_D_implementations_and_non_author_review",
+    "real_FULL_alignment",
+    "fixed_source_commit",
+    "scientific_run_authorization"
+  ]
+}

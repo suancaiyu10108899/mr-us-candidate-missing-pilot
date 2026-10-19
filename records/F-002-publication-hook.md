@@ -6,7 +6,7 @@
 - 仅变更本仓可见性逻辑：精确仓库首次 CREATE_INITIAL_REF 要求 live private，后续 UPDATE_FF/CREATE_REF 要求 live public；其他对象或未知状态拒绝。
 - 禁止 visibility/provider 环境覆盖；原生 publisher-check 与 R1–R6/P1 出站对象扫描保持，扫描段逐文本比对一致。
 - 本机配置持续启用 core.hooksPath=.githooks。普通同学不必安装本机管理工具；PR+非作者审查+fixture CI 是公共协作入口。
-- 实际测试：生产 PowerShell 函数的 3 个允许、7 个拒绝条件通过；原生 hook 缺 exact grant 时阻断。没有用模拟 provider 进行真实发布。
+- 实际测试：生产 PowerShell 函数的 3 个允许、7 个拒绝条件通过；原生 hook 缺 exact grant 时阻断，visibility/provider 两种环境覆盖均以 A17 阻断。没有用模拟 provider 进行真实发布。
 - 完整首发将由 fresh grant 绑定下列实际 hash，远端 equality/consume 后另行改变可见性；当前尚未声称首发完成。
 - 初始源 pre-push.ps1 SHA-256：eae58e57f1a251eea8436b311b04dc1d84369258898cf747a2c2be161256d643。
 - 变更记录由本提交的 Git diff 提供，敏感授权及日志只在本地忽略目录或仓外。

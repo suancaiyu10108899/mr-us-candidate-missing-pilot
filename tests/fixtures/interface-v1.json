@@ -1,0 +1,185 @@
+{
+  "kind": "synthetic_fixture",
+  "schema_version": "interface-v1",
+  "scientific_result": false,
+  "description": "Hand-authored small interfaces, no research-derived content",
+  "mri": {
+    "descriptors": [
+      [
+        1,
+        0
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        -1,
+        0
+      ],
+      [
+        0,
+        -1
+      ]
+    ],
+    "points": [
+      {
+        "point_id": "qA",
+        "descriptor_row": 0,
+        "i": 2,
+        "j": -1,
+        "k": 3,
+        "source_id": "artificial-qA"
+      },
+      {
+        "point_id": "qB",
+        "descriptor_row": 1,
+        "i": 2,
+        "j": 0,
+        "k": 3,
+        "source_id": "artificial-qB"
+      },
+      {
+        "point_id": "qC",
+        "descriptor_row": 2,
+        "i": 1,
+        "j": -1,
+        "k": 3,
+        "source_id": "artificial-qC"
+      },
+      {
+        "point_id": "qD",
+        "descriptor_row": 3,
+        "i": 2,
+        "j": -1,
+        "k": 4,
+        "source_id": "artificial-qD"
+      }
+    ]
+  },
+  "us": {
+    "descriptors": [
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        -1
+      ],
+      [
+        1,
+        0
+      ],
+      [
+        -1,
+        0
+      ]
+    ],
+    "points": [
+      {
+        "point_id": "u17",
+        "descriptor_row": 0,
+        "i": 1,
+        "j": 0,
+        "k": 0,
+        "source_id": "artificial-u17"
+      },
+      {
+        "point_id": "u05",
+        "descriptor_row": 1,
+        "i": 0,
+        "j": 0,
+        "k": 1,
+        "source_id": "artificial-u05"
+      },
+      {
+        "point_id": "u23",
+        "descriptor_row": 2,
+        "i": 0,
+        "j": 0,
+        "k": 0,
+        "source_id": "artificial-u23"
+      },
+      {
+        "point_id": "u11",
+        "descriptor_row": 3,
+        "i": 0,
+        "j": 1,
+        "k": 0,
+        "source_id": "artificial-u11"
+      }
+    ]
+  },
+  "candidates": {
+    "keep_ids": [
+      "u11",
+      "u23",
+      "u17"
+    ],
+    "remove_ids": [
+      "u05"
+    ]
+  },
+  "manual_geometry": {
+    "kind": "synthetic_fixture",
+    "status": "HAND_AUTHORED_EXPECTATION_NOT_COMPUTED",
+    "direction": "US_TO_MR",
+    "R": [
+      [
+        0,
+        -1,
+        0
+      ],
+      [
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1
+      ]
+    ],
+    "t": [
+      2,
+      -1,
+      3
+    ],
+    "full_pairs": [
+      [
+        "qA",
+        "u23"
+      ],
+      [
+        "qB",
+        "u17"
+      ],
+      [
+        "qC",
+        "u11"
+      ],
+      [
+        "qD",
+        "u05"
+      ]
+    ]
+  },
+  "manual_scoring": {
+    "kind": "synthetic_fixture",
+    "status": "HAND_AUTHORED_EXPECTATION_NOT_COMPUTED",
+    "separate_three_query_example": true,
+    "N_present": 2,
+    "N_absent": 1,
+    "correct_accepted": 1,
+    "wrong_present": 0,
+    "accepted_absent": 1,
+    "rejected_present": 1,
+    "rejected_absent": 0,
+    "precision": 0.5,
+    "coverage_present": 0.5,
+    "false_accept_absent": 1.0,
+    "acceptance_all": "2/3"
+  }
+}

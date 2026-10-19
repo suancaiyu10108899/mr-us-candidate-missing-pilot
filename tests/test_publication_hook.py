@@ -42,9 +42,12 @@ ConvertTo-Json -Compress -InputObject $results
 
 
 @pytest.mark.skipif(not SHELL, reason="maintainer PowerShell unavailable")
-def test_native_hook_without_grant_blocks_before_publication():
+@pytest.mark.parametrize("override", [None, "PCA_ALLOW_UNVERIFIED_VISIBILITY", "PCA_GH_CMD"])
+def test_native_hook_without_grant_blocks_before_publication(override):
     import os
     environment = {k: v for k, v in os.environ.items() if not k.startswith("PCA_")}
+    if override:
+        environment[override] = "synthetic-forbidden-override"
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     line = f"{head} {head} refs/heads/main {'0' * 40}\n"
     result = subprocess.run([SHELL, "-NoProfile", "-NonInteractive", "-File",
@@ -53,3 +56,5 @@ def test_native_hook_without_grant_blocks_before_publication():
                             cwd=ROOT, input=line, env=environment, text=True, capture_output=True)
     assert result.returncode != 0
     assert "[A5]" in result.stdout  # No grant; visibility is never treated as authority.
+    if override:
+        assert "[A17]" in result.stdout
