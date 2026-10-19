@@ -1,6 +1,6 @@
 # 候选缺失协议 v1.0
 
-状态：BOOTSTRAP_PROTOCOL；正式输入与代码尚未冻结；科学运行 NOT_RUN。
+状态：协议 v1.0；A 已准备 release-v1 与固定候选名单，D 独立复核和正式共同代码冻结待完成；新 FULL/矩阵 NOT_RUN。
 本文件是唯一科学定义，机器配置为 `configs/experiment-v1.json` 的对应表达。变更需说明依据、更新版本；不因已见结果调阈值或挑 seed。
 
 ## 1. 问题与边界
@@ -16,7 +16,9 @@
 ## 2. 输入、ID 与隔离
 
 真实输入包 `data/inputs/release-v1/`：manifest.json、mri_descriptors.npy、us_descriptors.npy、mri_points.csv、us_points.csv、conditions.json。
-独立参考 `evaluation_reference/`：reference.json、correspondences.csv、baseline_pairs.csv、reference_manifest.json。
+独立参考 `evaluation_reference/release-v1/`：reference.json、correspondences.csv、baseline_pairs.csv、baseline_transform.json、input_audit.json、source_evidence.json、reference_manifest.json。
+
+A 的 prepare/verify-inputs/verify-reference/package-inputs 已实现；新输入包额外保存 experiment.json、attribution.json。manifest 的逐文件 hash 与信封 content_sha256 分开，交接页另给完整 manifest 文件 SHA-256。文件名单封闭，额外文件也拒绝。包修改须新版本，不能替换旧 release。
 
 manifest 至少记录 release_id/schema_version、固定源仓与 commit/运行、源与输出 SHA-256、encoder/checkpoint/preprocess 身份、dtype/shape、坐标单位、行序和转换步骤。未知字段留缺项，不猜 hash。新输入形成新 release，原 release 只读。
 
@@ -26,7 +28,7 @@ A/D 检查文件/hash、有限值、向量范数 > 1e-12、模型身份一致、
 
 D 以原坐标及参考变换确认每个 MRI 查询恰有一个 US 候选满足参考误差 ≤ 0.5，且一对一。否则暂停正式矩阵，不能硬填 64 对或删 16 即缺 16。
 
-参考方向 US_TO_MR：R_ref=I，t_ref=(-4,+3,-2)，单位 index_unit。数学列向量 `R @ p_us + t`，行数组 `points_us @ R.T + t`。参考实物与 8 探针仍须核对；本协议中的理论值不能冒充旧运行输出。
+参考方向 US_TO_MR：R_ref=I，t_ref=(-4,+3,-2)，单位 index_unit。数学列向量 `R @ p_us + t`，行数组 `points_us @ R.T + t`。A 已核对参考实物与原 8 探针，D 后续独立复核；理论参考与旧运行变换分别保存。
 
 ## 3. 固定条件
 
@@ -116,7 +118,7 @@ query_evaluation 按 ID 接参考、候选存在性、参考误差、五类及 F
 
 ## 9. 测试与真实 FULL 门
 
-A/D：ID 重复、row 缺失、模型错、非有限值、非法名单必须报错；点行打乱仍正确连接。B：互为最近邻/非 mutual/并列、ratio=0.8、d2=0、0/1 候选、删次近重算、删正确候选与存活集合。C：非零人工旋转平移、反射、共线/共面、不足 4 对、最终重拟合退化。D：全拒绝/FULL 零分母、混 run/hash、手算分类。集成：上游失败不可伪造完整结果。各人调用自己的实际生产实现；当前只测骨架与人工接口，算法测试待本人实现。
+A/D：ID 重复、row 缺失、模型错、非有限值、非法名单必须报错；点行打乱仍正确连接。B：互为最近邻/非 mutual/并列、ratio=0.8、d2=0、0/1 候选、删次近重算、删正确候选与存活集合。C：非零人工旋转平移、反射、共线/共面、不足 4 对、最终重拟合退化。D：全拒绝/FULL 零分母、混 run/hash、手算分类。集成：上游失败不可伪造完整结果。各人调用自己的实际生产实现；A 准备器已以人工来源测试并验收旧输入，B/C/D 算法测试待本人实现。
 
 真实 FULL+MNN_RATIO 须：输入和旧产物身份核实；新旧 47 对 ID 集完全一致；D 独立得 N64/K47/C47；旧距离/ratio 可得字段按 atol=1e-10、rtol=1e-8 比较，缺项记未比较；新旧变换在原 8 探针最大作用差 ≤1e-5，并另报新变换相对参考误差；子集关系成立，所有文件 ID 贯通，无参考辅助预测。缺旧变换/探针时提出协议修订，不造旧证据。失败先查身份/排序/符号/版本，不能直接放宽容差。
 

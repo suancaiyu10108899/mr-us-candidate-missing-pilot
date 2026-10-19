@@ -1,9 +1,6 @@
-"""A owns release preparation; no research files are read by this stub."""
-from pathlib import Path
+"""A's data preparation and input readers; no B/C/D prediction algorithms."""
+from .release import (load_geometry_points, load_matching_inputs, prepare,
+                      verify_inputs, verify_reference)
 
-from mrus_missing.errors import StageNotImplemented
-
-
-def prepare(source: Path, config: Path, output: Path) -> None:
-    """Reserve the source/config to immutable release interface."""
-    raise StageNotImplemented("prepare", "A")
+__all__ = ['prepare', 'verify_inputs', 'verify_reference',
+           'load_matching_inputs', 'load_geometry_points']

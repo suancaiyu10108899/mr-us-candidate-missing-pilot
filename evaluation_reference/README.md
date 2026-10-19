@@ -1,3 +1,3 @@
 # 独立参考（本地）
 
-此目录除本说明外全部忽略。A/D 管理 reference.json、correspondences.csv、baseline_pairs.csv、reference_manifest.json；实际参考尚未在新项目发布。B/C 的预测接口不接收参考。详情见 PROTOCOL。
+此目录除本说明外全部忽略。A 已准备 release-v1/，包含独立参考、对应表、历史47对、历史变换、原8探针和验收证据。A/D 通过单独参考包交接，B/C 的预测接口不接收参考。获取与指纹见 DATA-HANDOFF，科学定义见 PROTOCOL；D 独立复核仍待完成。

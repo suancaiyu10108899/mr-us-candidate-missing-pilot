@@ -11,7 +11,6 @@ from mrus_missing.errors import StageNotImplemented
 from mrus_missing.evaluation import evaluate, summarize
 from mrus_missing.geometry import fit
 from mrus_missing.matching import match
-from mrus_missing.preparation import prepare
 
 FIXTURE = Path(__file__).parent / "fixtures" / "interface-v1.json"
 
@@ -51,7 +50,7 @@ def test_invalid_interface_rejected(sample, mutation):
         validate_fixture(sample)
 
 
-@pytest.mark.parametrize("function", [prepare, match, fit, evaluate, summarize, run_matrix])
+@pytest.mark.parametrize("function", [match, fit, evaluate, summarize, run_matrix])
 def test_production_shell_fails_without_reading_or_writing(function, tmp_path):
     args = {name: tmp_path / name for name in inspect.signature(function).parameters}
     with pytest.raises(StageNotImplemented):
@@ -60,7 +59,6 @@ def test_production_shell_fails_without_reading_or_writing(function, tmp_path):
 
 
 @pytest.mark.parametrize("command,fields", [
-    ("prepare", ["source", "config", "output"]),
     ("match", ["mri-descriptors", "us-descriptors", "conditions", "condition-id", "method-id", "output"]),
     ("fit", ["pairs", "mri-points", "us-points", "config", "output"]),
     ("evaluate", ["release", "predictions", "reference", "output"]),

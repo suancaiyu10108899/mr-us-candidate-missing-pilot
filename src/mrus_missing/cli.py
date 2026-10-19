@@ -11,7 +11,8 @@ from mrus_missing.errors import StageNotImplemented
 from mrus_missing.evaluation import evaluate, summarize
 from mrus_missing.geometry import fit
 from mrus_missing.matching import match
-from mrus_missing.preparation import prepare
+from mrus_missing.preparation import prepare, verify_inputs, verify_reference
+from mrus_missing.preparation.delivery import package_inputs
 
 
 def run_matrix(release: Path, config: Path, output: Path) -> None:
@@ -27,7 +28,10 @@ def build_parser() -> argparse.ArgumentParser:
     fixture = sub.add_parser("inspect-fixture", help="validate synthetic interface only")
     fixture.add_argument("path", type=Path)
     specs = {
-        "prepare": (prepare, ("source", "config", "output")),
+        "prepare": (prepare, ("source", "config", "output", "reference_output")),
+        "verify-inputs": (verify_inputs, ("release",)),
+        "verify-reference": (verify_reference, ("reference", "release")),
+        "package-inputs": (package_inputs, ("release", "reference", "output")),
         "match": (match, ("mri_descriptors", "us_descriptors", "conditions", "condition_id", "method_id", "output")),
         "fit": (fit, ("pairs", "mri_points", "us_points", "config", "output")),
         "evaluate": (evaluate, ("release", "predictions", "reference", "output")),
@@ -35,12 +39,16 @@ def build_parser() -> argparse.ArgumentParser:
         "run-matrix": (run_matrix, ("release", "config", "output")),
     }
     for name, (handler, fields) in specs.items():
-        stage = sub.add_parser(name, help="NOT_IMPLEMENTED production interface")
+        implemented = name in ('prepare', 'verify-inputs', 'verify-reference', 'package-inputs')
+        stage = sub.add_parser(name, help="A input preparation/verification" if implemented else "NOT_IMPLEMENTED production interface")
         for field in fields:
             options = {"required": True, "type": str if field.endswith("_id") else Path}
             if field == "method_id":
                 options["choices"] = ("MNN", "MNN_RATIO")
             stage.add_argument("--" + field.replace("_", "-"), **options)
+        if name in ('verify-inputs', 'verify-reference'):
+            stage.add_argument('--expected-sha256', help='trusted manifest file SHA-256 from the handoff')
+            fields = (*fields, 'expected_sha256')
         stage.set_defaults(handler=handler, fields=fields)
     return parser
 
@@ -50,19 +58,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.command == "status":
-            result = {"project_state": "BOOTSTRAP", "scientific_runs": "NOT_RUN",
-                      "core_algorithms": "NOT_IMPLEMENTED", "matrix_rows_planned": 14}
+            result = {"project_state": "A_PREPARATION_IMPLEMENTED", "scientific_runs": "NOT_RUN",
+                      "B_C_D_algorithms": "NOT_IMPLEMENTED", "matrix_rows_planned": 14}
         elif args.command == "inspect-fixture":
             result = inspect_fixture(args.path)
         else:
-            args.handler(**{name: getattr(args, name) for name in args.fields})
-            raise RuntimeError("stage returned without a defined result contract")
+            result = args.handler(**{name: getattr(args, name) for name in args.fields})
+            if result is None:
+                raise RuntimeError("stage returned without a defined result contract")
     except StageNotImplemented as error:
         print(json.dumps({"status": "NOT_IMPLEMENTED", "stage": error.stage,
                           "owner": error.owner, "scientific_runs": "NOT_RUN"}), file=sys.stderr)
         return 3
-    except (OSError, ValueError) as error:
-        reason = "cannot read fixture" if isinstance(error, OSError) else str(error)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        reason = "cannot read or create requested files" if isinstance(error, OSError) else str(error)
         print(json.dumps({"status": "INVALID_INPUT", "reason": reason}), file=sys.stderr)
         return 2
     print(json.dumps(result, ensure_ascii=False, allow_nan=False, indent=2))
