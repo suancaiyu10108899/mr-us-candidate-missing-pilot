@@ -1,0 +1,79 @@
+{
+  "schema_version": "source-lock-v1",
+  "kind": "research_input",
+  "release_id": "release-v1",
+  "source_repository": "crosskey-reproduction-lab",
+  "source_snapshot_commit": "42ece51846106732ad227ee3b991560e418ac7b2",
+  "scientific_source_commit": "5264658cebb62e1539471ec8a36d6328d41f6a4e",
+  "shape": [
+    64,
+    512
+  ],
+  "checkpoint_sha256": "6283cc3e246662cad1a4790c7db7cd76eb5ccd621ce022e34538b0bcf5893632",
+  "encoder_id": "crosskey-model-ab853a7f5b8755f258cd13c9be6852d3082134e0717d05410282b9193e047327",
+  "preprocess_id": "pilot-preprocess-v1",
+  "artifacts": {
+    "mri_descriptors": {
+      "path": "local/learning/GPU1-export-trained-dispatch-20261004-001/descriptors/MRI",
+      "manifest_sha256": "559bb9a33614cfebad0cca0e1c9fc220c0d3170ec51c72f30131fc59a90fd02a",
+      "artifact_id": "L-GPU1-export-trained-20261004-001-MRI",
+      "content_sha256": "5a520133274cd7970ad2a2477c7ae7c913b56020c9c9968e2099deba1cfcaf9f",
+      "artifact_type": "DescriptorSet"
+    },
+    "us_descriptors": {
+      "path": "local/learning/GPU1-export-trained-dispatch-20261004-001/descriptors/U_SHIFT",
+      "manifest_sha256": "3b74e133e7a297586e1aa4d8b8cf39592ac71b7c42fa81b33ba3c034602fe1bf",
+      "artifact_id": "L-GPU1-export-trained-20261004-001-U_SHIFT",
+      "content_sha256": "43a79df2ac8a161b44485528fa61bd23a86764163de76360bea2bbd1d04a1989",
+      "artifact_type": "DescriptorSet"
+    },
+    "mri_points": {
+      "path": "data/releases/P01-v2/data-release-v2-points-MRI",
+      "manifest_sha256": "00d2858178eca076ddaf15d00da5ede2f1c029ca4ac85f1b6654224d3d85bb4c",
+      "artifact_id": "data-release-v2-points-MRI",
+      "content_sha256": "5a48a0b416a74c3f9eacc5e9048e01bb484ac930f73fdd98214e203f2c7dee85",
+      "artifact_type": "PointSet"
+    },
+    "us_points": {
+      "path": "data/releases/P01-v2/data-release-v2-points-U_SHIFT",
+      "manifest_sha256": "faaa79ac5f10da3ac511eb7346e82b92b53880c089af5e66be3ab55b4d38d9f7",
+      "artifact_id": "data-release-v2-points-U_SHIFT",
+      "content_sha256": "55f10a1072c8548f0b26af67e04d31090819cf960073d9b75f3159d06d7a39c7",
+      "artifact_type": "PointSet"
+    },
+    "baseline_pairs": {
+      "path": "local/registration/P06-MODEL-TRAINED-L-GPU1-export-trained-20261004-001/matches",
+      "manifest_sha256": "e36a5d9f9c5513dc166141de2f76457b1f6e65970bd6267d6064ffaad949a09a",
+      "artifact_id": "R-P06-MODEL-TRAINED-20261004-001-matches",
+      "content_sha256": "d53d7803f06ffacf3f28b4fa424a1acde86110eaf1305fd33c64aa808f409e65",
+      "artifact_type": "MatchSet"
+    },
+    "baseline_transform": {
+      "path": "local/registration/P06-MODEL-TRAINED-L-GPU1-export-trained-20261004-001/transform",
+      "manifest_sha256": "f39c9abca2f80c999ce631064ac1e5ece7e26e980ab43802a81516b148f2f47b",
+      "artifact_id": "R-P06-MODEL-TRAINED-20261004-001-transform",
+      "content_sha256": "576f60a1eb5da9f987a13eed9a7ebc826057163952e3f40f057b2f9184304175",
+      "artifact_type": "Transform"
+    },
+    "reference": {
+      "path": "data/releases/P01-v2/data-release-v2",
+      "manifest_sha256": "6f2b109cc3540f2aac63a122c3d5d13eff2df561ec2b7454d1ff6381c21de77c",
+      "artifact_id": "data-release-v2",
+      "content_sha256": "b702d2b3050ca0836621fb060ceec08e69c774e4f704b213c606d2e2d3e0da2d",
+      "artifact_type": "VolumeRelease"
+    }
+  },
+  "attribution": {
+    "original_dataset": "The Brain Resection Multimodal Imaging Database (ReMIND), Version 1",
+    "dataset_doi": "https://doi.org/10.7937/3RAG-D070",
+    "dataset_license": "CC-BY-4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "dataset_authors": "Juvekar, P., Dorent, R., Kogl, F., et al. (2023)",
+    "processed_source": "https://github.com/morozovdd/CrossKEY",
+    "processed_source_commit": "4be57958eefcb255ec49aa16de9c4bceef381cfe",
+    "software_license": "MIT (software only)",
+    "changes": "Fixed-model descriptors from the prior single-case pilot; original index coordinates and reference retained; candidate subsets newly recorded. No images or weights included.",
+    "provenance_limit": "Author-provided processed MRI and synthetic US; not independently traced back to original DICOM.",
+    "distribution": "restricted_team_handoff; public redistribution not authorized by this lock"
+  }
+}
