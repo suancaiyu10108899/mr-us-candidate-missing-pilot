@@ -170,6 +170,18 @@ def test_status_does_not_claim_scientific_completion(capsys):
     assert result['execution_by_status'] is False and result['scientific_run_history']=='NOT_INSPECTED'
 
 
+def test_cli_distinguishes_backend_contract_from_bad_inputs(transport_double,tmp_path,capsys):
+    backend,_=transport_double;original=backend.match_descriptors
+    def bad(*args,**kwargs):
+        result=original(*args,**kwargs);result['queries'][0]['ratio_pass']=False
+        return result
+    backend.match_descriptors=bad
+    assert main(['match-fixture','--fixture',str(FIXTURE),'--config',str(CONFIG),'--method-id','MNN',
+                 '--output',str(tmp_path/'bad'),'--run-id','fixture-bad','--operator','tester'])==4
+    assert json.loads(capsys.readouterr().err)['status']=='BACKEND_CONTRACT_ERROR'
+    assert not (tmp_path/'bad').exists()
+
+
 @pytest.mark.skipif(not runner.matching_capabilities()['match_fixture'],reason='B API not present in this branch')
 @pytest.mark.parametrize('method',['MNN','MNN_RATIO'])
 def test_actual_backend_fixture_end_to_end(method,tmp_path):

@@ -8,3 +8,7 @@ class StageNotImplemented(NotImplementedError):
         self.stage = stage
         self.owner = owner
         super().__init__(f"{stage} is NOT_IMPLEMENTED; owner {owner}")
+
+
+class BackendContractError(ValueError):
+    """A backend returned output outside the shared contract; inputs may be valid."""

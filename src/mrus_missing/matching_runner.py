@@ -12,7 +12,7 @@ import subprocess
 import numpy as np
 
 from .contracts import validate_fixture
-from .errors import StageNotImplemented
+from .errors import BackendContractError, StageNotImplemented
 from .preparation import load_matching_request
 from .preparation.files import canonical, decode_json, digest, read_json, require
 from .preparation.release import validate_config
@@ -65,6 +65,11 @@ def _preflight(output: Path, run_id: str, operator: str, protected: list[Path]) 
             'output must not be inside immutable inputs')
 
 
+def _contract_require(condition: bool, message: str) -> None:
+    if not condition:
+        raise BackendContractError(message)
+
+
 def _check_result_identity(result: dict, request: dict) -> None:
     """Check transport identity and nullable diagnostics; do not redo B matching."""
     inputs = request['inputs']
@@ -73,13 +78,13 @@ def _check_result_identity(result: dict, request: dict) -> None:
                 'release_id': inputs['release_id'], 'query_count': len(inputs['query_ids']),
                 'candidate_count': len(inputs['candidate_ids']), 'protocol_version': '1.0',
                 'dimension': inputs['mri_descriptors'].shape[1]}
-    require(all(d.get(k) == v for k, v in expected.items()), 'backend output identity differs from bound request')
-    require(d['matching_config'] == request['config']['matching'], 'backend changed matching configuration')
-    require([q['query_id'] for q in result['queries']] == inputs['query_ids'], 'backend query IDs/order differ')
+    _contract_require(all(d.get(k) == v for k, v in expected.items()), 'backend output identity differs from bound request')
+    _contract_require(d['matching_config'] == request['config']['matching'], 'backend changed matching configuration')
+    _contract_require([q['query_id'] for q in result['queries']] == inputs['query_ids'], 'backend query IDs/order differ')
     for q in result['queries']:
-        require(q['condition_id'] == request['condition_id'] and q['method_id'] == request['method_id'],
+        _contract_require(q['condition_id'] == request['condition_id'] and q['method_id'] == request['method_id'],
                 'mixed query output identities')
-        require((q['ratio'] is None and q['ratio_pass'] is None)
+        _contract_require((q['ratio'] is None and q['ratio_pass'] is None)
                 or (q['ratio'] is not None and type(q['ratio_pass']) is bool),
                 'undefined ratio requires ratio_pass=null; backend contract repair needed')
 
@@ -95,26 +100,32 @@ def _execute(request: dict, backend, api: str, output: Path, run_id: str, operat
         result = backend.match_descriptors(inputs['mri_descriptors'], inputs['us_descriptors'],
             inputs['query_ids'], inputs['candidate_ids'], inputs['candidate_source_rows'],
             release_id=inputs['release_id'], **arguments)
-    _check_result_identity(result, request)
+    try:
+        _check_result_identity(result, request)
+    except (KeyError, TypeError, AttributeError):
+        raise BackendContractError('backend output schema differs') from None
     result = copy.deepcopy(result)
     result['diagnostics']['input_kind'] = request['kind']
     result['diagnostics']['request_schema'] = request['request_schema']
     result['diagnostics']['runner_source'] = identity
     for name, value in request['provenance'].items():
         key = 'verified_' + name
-        require(key not in result['diagnostics']['input_sha256'], 'backend reused A provenance field')
+        _contract_require(key not in result['diagnostics']['input_sha256'], 'backend reused A provenance field')
         result['diagnostics']['input_sha256'][key] = value
     metadata = {'run_id': run_id, 'source_commit': identity['source_commit'],
         'source_dirty': identity['source_dirty'], 'mode': 'debug', 'operator': operator,
         'command': command, 'dependencies': {'python': platform.python_version(), 'numpy': np.__version__},
         'started_at': started, 'ended_at': datetime.now(timezone.utc).isoformat()}
-    backend.write_match_outputs(result, output, run_metadata=metadata)
+    try:
+        backend.write_match_outputs(result, output, run_metadata=metadata)
+    except (ValueError, KeyError, TypeError) as error:
+        raise BackendContractError('backend writer rejected output: ' + str(error)) from None
     run = read_json(output / 'RUN.json')
-    require(all(run.get(k) == v for k, v in metadata.items()), 'backend RUN metadata differs')
-    require(all(run['input_sha256'].get('verified_' + k) == v for k, v in request['provenance'].items()),
+    _contract_require(all(run.get(k) == v for k, v in metadata.items()), 'backend RUN metadata differs')
+    _contract_require(all(run['input_sha256'].get('verified_' + k) == v for k, v in request['provenance'].items()),
             'backend RUN lost verified input provenance')
     for name in ('queries.csv', 'pairs.csv', 'match_diagnostics.json'):
-        require(digest((output / name).read_bytes()) == run['output_sha256'][name], 'output hash mismatch')
+        _contract_require(digest((output / name).read_bytes()) == run['output_sha256'][name], 'output hash mismatch')
     return {'status': 'MATCH_COMPLETED_DEBUG', 'kind': request['kind'], 'run_id': run_id,
             'condition_id': request['condition_id'], 'method_id': request['method_id'],
             'query_count': len(result['queries']), 'accepted_count': len(result['pairs']),

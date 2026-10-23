@@ -7,7 +7,7 @@ import sys
 from typing import Sequence
 
 from mrus_missing.contracts import inspect_fixture
-from mrus_missing.errors import StageNotImplemented
+from mrus_missing.errors import BackendContractError, StageNotImplemented
 from mrus_missing.evaluation import evaluate, summarize
 from mrus_missing.geometry import fit
 from mrus_missing.matching_runner import match_fixture, match_release, matching_capabilities
@@ -58,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Return 0 for structural checks, 2 for invalid input, 3 for absent stages."""
+    """Return 0 on success, 2 for inputs, 3 for absent APIs, 4 for backend contracts."""
     args = build_parser().parse_args(argv)
     try:
         if args.command == "status":
@@ -76,6 +76,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps({"status": "NOT_IMPLEMENTED", "stage": error.stage,
                           "owner": error.owner, "scientific_runs": "NOT_RUN"}), file=sys.stderr)
         return 3
+    except BackendContractError as error:
+        print(json.dumps({'status': 'BACKEND_CONTRACT_ERROR', 'stage': 'match', 'reason': str(error)}), file=sys.stderr)
+        return 4
     except (OSError, ValueError, KeyError, TypeError) as error:
         reason = "cannot read or create requested files" if isinstance(error, OSError) else str(error)
         print(json.dumps({"status": "INVALID_INPUT", "reason": reason}), file=sys.stderr)
