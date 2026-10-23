@@ -12,4 +12,12 @@
 - 验收：实际 CLI 参数/退出码/来源链测试、全套人工测试、固定 B 的人工组合检查、匿名文档访问和 PR CI。
 - 新手入口：Issue 认领、分支、测试、commit/push、Draft PR、review/返修、A 合并与下游确认；gh 可选。
 - 审查分工：B审A/C审B/D审C/A审D只表示工程审查；D独立科学评价仍保留，不预设任何审查必须批准。
-- 当前：施工中；本地 lease OWNED；开工 handover 已运行，结果留本地忽略目录，收口时登记实际状态。
+- 实现：855b23a 完成条件/配置/哈希绑定与公共runner，11d7c98 区分后端合同错误。保留原六字段，不修改B核心；参数仍读取已核原包，不修改科研配置。
+- 验收：A分支全套69 passed/2 skipped，跳过仅因本分支没有B后端；固定A源码11d7c98与B源码79508e3的隔离人工检出71 passed。传输test double只验证A调用合同，不冒B数值测试。
+- 实际CLI：四查询人工样例的MNN/MNN_RATIO各接受3对；合成64查询/48候选的RAND_1调用通过，RUN保留输入清单/候选/配置指纹。全部为synthetic_fixture，未读取真实科研数组作匹配。
+- 拒收验证：旧B的单候选ratio_pass=false明确退出4/BACKEND_CONTRACT_ERROR且无结果目录；不把未定义诊断改写后伪称B合约通过。仍由B修生成器/writer和专用测试。
+- 文档：统一Windows虚拟环境命令；补认领/分支/测试/commit/push/Draft PR/review/返修/合并与下游确认，gh可选；工程审查轮转与D科学独审分开。
+- 输入保全：已有input/reference/delivery共18文件SHA-256前后相同，包括两份真实ZIP；没有重建release-v1或改阈值。
+- 本地验证检出与venv均属于 .local/F004-integration 下的人工fixture，保留证据，不作为科研运行或学生正式交付。
+- 门禁：lease OWNED；开工handover PASS_WITH_NOTES（2026-10-23T13:33:38Z），全局既有verify/comms备注保留。原件/测试/发布回执在本地忽略目录。
+- 未完成：B专用测试和nullable修补、学生Issue认领、非作者review、main合并、D独审及真实FULL/矩阵。A不替同学认领或自动批准。

@@ -108,6 +108,8 @@ D 从少量真实原数组/坐标独立复算距离、ratio 和参考误差，�
 
 queries：condition_id/method_id/query_id/query_row、nearest_id/second_id/d1/d2/ratio、forward_unique/reverse_unique/mutual/ratio_pass、accepted/accepted_candidate_id/rejection_reason。正式每行 64 query；accepted=false 时 accepted_candidate_id 空，nearest 不能给 C 当接受配对。
 
+诊断补充：ratio 无法计算（缺次近候选或 d2≤eps）时，ratio 和 ratio_pass 均为 null；可计算时 ratio_pass 才为布尔值。MNN 不因该标志拒绝；MNN_RATIO 仍要求判据为 true。接受规则和拒因优先级不变。B 同步其 writer 的 nullable 字段校验与专用测试。
+
 pairs：condition_id/method_id/query_id/candidate_id/d1/d2/ratio，只含接受项，沿 MRI 来源顺序。match_diagnostics 不含真值。
 
 transform：direction/unit/status/R/t/fit_config/pairs_sha256/source_commit。inliers 保存输入 pair ID、最终内点标志与预测残差；diagnostics 保存有效抽样、退化与最终状态。
@@ -123,3 +125,9 @@ A/D：ID 重复、row 缺失、模型错、非有限值、非法名单必须报�
 真实 FULL+MNN_RATIO 须：输入和旧产物身份核实；新旧 47 对 ID 集完全一致；D 独立得 N64/K47/C47；旧距离/ratio 可得字段按 atol=1e-10、rtol=1e-8 比较，缺项记未比较；新旧变换在原 8 探针最大作用差 ≤1e-5，并另报新变换相对参考误差；子集关系成立，所有文件 ID 贯通，无参考辅助预测。缺旧变换/探针时提出协议修订，不造旧证据。失败先查身份/排序/符号/版本，不能直接放宽容差。
 
 通过后冻结输入 release/实际名单、协议、共同 commit 与配置，才可另行获准运行矩阵。每行保留错误/算法失败/NA，固定 seed 不择优。D 独立评分，非作者复核完整链，四人解释并交付后停止。
+
+## 10. 公共调用链
+
+A 的 matching-request-v1 将已核验的输入 manifest、候选条件、方法和原包配置绑定在同一个请求中。保留 B 原六字段 API；公共 runner 统一传递标签与配置，并在 writer 前检查返回身份，不能将48候选结果记成FULL。详情见 [匹配接入合同](docs/MATCHING-INTEGRATION.md)。
+
+公共 CLI 的 match 使用整包 release 与交接 manifest SHA；match-fixture 只消费标明 synthetic_fixture 的人工材料。都只产生 debug 输出，不启动矩阵。A 分支没有 B API 时明确未实现。A 的接口测试不代替 B 的算法边界测试，代码审查不代替 D 的独立评分。
