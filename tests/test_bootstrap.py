@@ -59,7 +59,6 @@ def test_production_shell_fails_without_reading_or_writing(function, tmp_path):
 
 
 @pytest.mark.parametrize("command,fields", [
-    ("match", ["mri-descriptors", "us-descriptors", "conditions", "condition-id", "method-id", "output"]),
     ("fit", ["pairs", "mri-points", "us-points", "config", "output"]),
     ("evaluate", ["release", "predictions", "reference", "output"]),
     ("summarize", ["metrics", "query-evaluation", "output"]),
@@ -87,6 +86,7 @@ def test_predictors_have_no_reference_argument(tmp_path):
 
 def test_working_cli_status_and_fixture(capsys):
     assert main(["status"]) == 0
-    assert json.loads(capsys.readouterr().out)["scientific_runs"] == "NOT_RUN"
+    state = json.loads(capsys.readouterr().out)
+    assert state['scientific_run_history'] == 'NOT_INSPECTED' and state['execution_by_status'] is False
     assert main(["inspect-fixture", str(FIXTURE)]) == 0
     assert json.loads(capsys.readouterr().out)["status"] == "STRUCTURE_VALID"

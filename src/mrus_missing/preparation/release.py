@@ -1,11 +1,12 @@
 """Create and verify immutable input releases; never run B/C/D algorithms."""
+import io
 import re
 import shutil
 from pathlib import Path
 
 import numpy as np
 
-from .files import (check_seal, digest, file_specs, read_csv, read_json, read_verified,
+from .files import (canonical, check_seal, decode_json, digest, file_specs, read_csv, read_json, read_verified,
                     require, seal, write_csv, write_json)
 from .legacy import audit_source
 
@@ -15,15 +16,21 @@ INPUT_FILES = {"mri_descriptors.npy", "us_descriptors.npy", "mri_points.csv", "u
 REFERENCE_FILES = {"reference.json", "correspondences.csv", "baseline_pairs.csv",
                    "baseline_transform.json", "input_audit.json", "source_evidence.json"}
 CONDITIONS = ["FULL", "RAND_1", "RAND_2", "RAND_3", "SPATIAL_I", "SPATIAL_J", "SPATIAL_K"]
+MATCHING_V1 = {
+    "dtype": "float64", "source_dtype": "float32", "query_count": 64, "dimension": 512,
+    "distance": "L2", "renormalize": False, "eps": 1e-12,
+    "tie_rule": "distance_minus_min_le_eps", "ratio_threshold": 0.8,
+    "ratio_comparison": "strict_lt", "reverse_ratio": False, "reverse_query_set": "all_64",
+}
 
 
 def validate_config(config: dict) -> None:
     require(config["protocol_version"] == "1.0" and config["matrix_rows"] == 14
             and config["methods"] == ["MNN", "MNN_RATIO"], "unsupported experiment protocol")
     require([x["condition_id"] for x in config["conditions"]] == CONDITIONS, "condition order differs")
-    require(config["matching"]["eps"] == 1e-12 and config["matching"]["ratio_threshold"] == 0.8
-            and config["matching"]["distance"] == "L2"
-            and config["matching"]["renormalize"] is False, "matching configuration differs")
+    require(set(config["matching"]) == set(MATCHING_V1)
+            and all(type(config["matching"][k]) is type(v) and config["matching"][k] == v
+                    for k, v in MATCHING_V1.items()), "matching configuration differs from protocol v1")
     for i, c in enumerate(config["conditions"]):
         require(c["keep_count"] == (64 if i == 0 else 48)
                 and c["remove_count"] == (0 if i == 0 else 16), "condition counts differ")
@@ -64,9 +71,10 @@ def build_conditions(ids: list[str], points: np.ndarray, config: dict, input_sha
 
 def _manifest(root: Path, name: str, schema: str, files: set[str], expected_sha256=None, read_names=None) -> dict:
     path = root / name
+    manifest_bytes = path.read_bytes()
     if expected_sha256:
-        require(digest(path.read_bytes()) == expected_sha256, "external manifest SHA-256 mismatch")
-    m = read_json(path)
+        require(digest(manifest_bytes) == expected_sha256, "external manifest SHA-256 mismatch")
+    m = decode_json(manifest_bytes)
     check_seal(m)
     require(m["schema_version"] == schema and set(m["files"]) == files,
             "release schema/file allowlist differs")
@@ -125,23 +133,34 @@ def verify_inputs(release: Path, expected_sha256=None, *, expected_kind="researc
             "scientific_runs": "NOT_RUN", "D_review": "PENDING"}
 
 
-def load_matching_inputs(release: Path, condition_id: str, expected_sha256=None, *, expected_kind='research_input') -> dict:
-    """Return descriptor-only B inputs; no coordinates/reference/old pairs returned."""
+def _matching_request(release: Path, condition_id: str, expected_sha256, expected_kind: str) -> dict:
+    """Resolve labels and vectors together, reading no coordinates or reference."""
     names = {"mri_descriptors.npy", "us_descriptors.npy", "conditions.json", "experiment.json"}
     m = _manifest(release, "manifest.json", "mrus-input-release/1", INPUT_FILES,
-                  expected_sha256, read_names=names)
+                  expected_sha256, read_names=set())
+    payloads = {name: read_verified(release, m['files'][name]) for name in names}
+    config = decode_json(payloads['experiment.json'])
+    validate_config(config)
+    require(digest(payloads['experiment.json']) == m['experiment_sha256'], 'experiment binding differs')
+    require(condition_id in CONDITIONS, 'unknown condition')
     require(m['kind'] == expected_kind and m['model']['producer_type'] == 'MODEL_TRAINED', 'input kind/model mismatch')
     ids = m['descriptor_ids']
     arrays = {}
     for side in ('mri', 'us'):
         require(len(ids[side]) == len(set(ids[side])) == 64, 'descriptor IDs invalid')
-        arrays[side] = np.load(release / f'{side}_descriptors.npy', allow_pickle=False)
+        arrays[side] = np.load(io.BytesIO(payloads[f'{side}_descriptors.npy']), allow_pickle=False)
         require(arrays[side].dtype == np.float32 and arrays[side].shape == (64, 512)
                 and np.isfinite(arrays[side]).all()
                 and (np.linalg.norm(arrays[side].astype(np.float64), axis=1) > 1e-12).all(), 'invalid descriptor array')
-    conditions = read_json(release / 'conditions.json')
+    conditions = decode_json(payloads['conditions.json'])
+    require(conditions['schema_version'] == 'conditions-v1'
+            and [c['condition_id'] for c in conditions['conditions']] == CONDITIONS
+            and conditions['source_us_descriptors_sha256'] == m['files']['us_descriptors.npy']['sha256'],
+            'condition manifest identity differs')
     condition = next((c for c in conditions['conditions'] if c['condition_id'] == condition_id), None)
     require(condition is not None, "unknown condition")
+    spec = next(c for c in config['conditions'] if c['condition_id'] == condition_id)
+    require(all(condition.get(k) == v for k, v in spec.items()), 'condition rule/config mismatch')
     keep, remove = condition['keep_ids'], condition['remove_ids']
     require(len(keep) == len(set(keep)) == (64 if condition_id == 'FULL' else 48)
             and len(remove) == len(set(remove)) == (0 if condition_id == 'FULL' else 16)
@@ -149,9 +168,39 @@ def load_matching_inputs(release: Path, condition_id: str, expected_sha256=None,
     require(keep == [p for p in ids['us'] if p in keep], 'candidate source order differs')
     by_id = {p: i for i, p in enumerate(ids['us'])}
     columns = [by_id[p] for p in condition["keep_ids"]]
-    return {"mri_descriptors": arrays['mri'], "us_descriptors": arrays['us'][columns],
+    inputs = {"mri_descriptors": arrays['mri'], "us_descriptors": arrays['us'][columns],
             "query_ids": ids['mri'], "candidate_ids": keep,
             "candidate_source_rows": columns, "release_id": m['release_id']}
+    # Manifest bytes are checked again so a changing directory cannot silently mix identities.
+    final_manifest_bytes = (release / 'manifest.json').read_bytes()
+    final_manifest = decode_json(final_manifest_bytes)
+    require(final_manifest == m, 'input manifest changed while reading')
+    return {'inputs': inputs, 'condition_id': condition_id, 'config': config, 'kind': m['kind'],
+            'provenance': {
+                'release_manifest_file': digest(final_manifest_bytes),
+                'conditions_file': digest(payloads['conditions.json']),
+                'experiment_file': digest(payloads['experiment.json']),
+                'condition_selection': digest(canonical([condition_id, keep, columns])),
+            }}
+
+
+def load_matching_inputs(release: Path, condition_id: str, expected_sha256=None, *, expected_kind='research_input') -> dict:
+    """Backward-compatible six-field B API; official runs use the bound request."""
+    return _matching_request(release, condition_id, expected_sha256, expected_kind)['inputs']
+
+
+def load_matching_request(release: Path, condition_id: str, method_id: str,
+                          expected_sha256: str, *, expected_kind='research_input') -> dict:
+    """Bind verified candidate selection, method, configuration and file provenance.
+
+    The backend still receives the original six-field inputs. The orchestrator
+    takes its labels/config from this same request, never from a second caller.
+    """
+    require(isinstance(expected_sha256, str) and re.fullmatch(r'[0-9a-f]{64}', expected_sha256) is not None,
+            'trusted manifest SHA-256 required')
+    require(method_id in ('MNN', 'MNN_RATIO'), 'unknown method')
+    request = _matching_request(release, condition_id, expected_sha256, expected_kind)
+    return {**request, 'method_id': method_id, 'request_schema': 'matching-request-v1'}
 
 
 def load_geometry_points(release: Path, expected_sha256=None, *, expected_kind='research_input') -> dict:

@@ -29,14 +29,20 @@ def _unique_object(pairs):
     return result
 
 
-def read_json(path: Path) -> dict:
-    require(path.stat().st_size <= 1024 * 1024, "JSON exceeds 1 MiB")
+def decode_json(blob: bytes) -> dict:
+    """Decode already verified bytes without reopening a mutable path."""
+    require(len(blob) <= 1024 * 1024, "JSON exceeds 1 MiB")
     def invalid_constant(value):
         raise ValueError("nonfinite JSON value")
-    result = json.loads(path.read_bytes(), object_pairs_hook=_unique_object,
+    result = json.loads(blob, object_pairs_hook=_unique_object,
                         parse_constant=invalid_constant)
     require(isinstance(result, dict), "JSON object required")
     return result
+
+
+def read_json(path: Path) -> dict:
+    require(path.stat().st_size <= 1024 * 1024, "JSON exceeds 1 MiB")
+    return decode_json(path.read_bytes())
 
 
 def inside(root: Path, relative: str) -> Path:
