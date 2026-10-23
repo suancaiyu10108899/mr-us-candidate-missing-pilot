@@ -10,7 +10,7 @@
 | [C 几何 #3](https://github.com/suancaiyu10108899/mr-us-candidate-missing-pilot/issues/3) | US_TO_MR 变换或明确失败、内点、拟合测试和解释 | 用人工非零旋转平移与退化点集 |
 | [D 独立评价 #4](https://github.com/suancaiyu10108899/mr-us-candidate-missing-pilot/issues/4) | 输入独立复核、逐查询评分、检查、案例与解释 | 从手算分类开始，并复核 A 的真实输入 |
 
-在对应 Issue 留下本人 GitHub 用户名、认领角色、可用时间和首次交付日期。A 统一接口，模块内部问题由本人修复。仓库协作者权限与任务认领是两件事，已入仓也要在 Issue 登记。可以先阅读和运行本地人工检查。
+在对应 Issue 按 [认领模板](docs/GITHUB-WORKFLOW.md#2-认领任务确认数据接收) 留下本人 GitHub 用户名、认领角色、当前分支/commit、环境检查、输入包校验结果、可用时间和首次交付日期；未收到数据包就如实注明。A 确认后在 Issue 的 Assignees 登记负责人。A 统一接口，模块内部问题由本人修复。仓库协作者权限与任务认领是两件事，已入仓也要在 Issue 登记。可以先阅读和运行本地人工检查。
 
 ## 安装与第一条检查
 
@@ -79,5 +79,7 @@ C 可使用 `load_geometry_points(Path("data/inputs/release-v1"))` 取得 `mri/u
 ## 第一次交付
 
 具体按钮、命令、返修和合并步骤见 [Git/PR 操作指南](docs/GITHUB-WORKFLOW.md)。使用本人分支（建议 B=`codex/preexp-matching`、C=`codex/preexp-geometry`、D=`codex/preexp-evaluation`），提交生产函数及人工测试，开 PR 并在任务 Issue 写明：输入版本、代码 commit、运行命令、检查结果、未完成项，以及一个本人能解释的案例。
+
+B 已有实现分支，应先合入最新 `origin/codex/preexp-data`，按接口说明修正 nullable ratio 的生成与 writer 校验，再补专用测试。A PR #5 未合入 main 前，B 的草稿 PR 以 `codex/preexp-data` 为 base；A 合入后协调切换 main 并复查 diff/CI。草稿可以提前讨论，准备好后转 Ready for review 并请求 C 审查。B 审 A 时核对 PR #5 当前最新 head，不以旧提交代替。
 
 main 要求非作者审查与 `fixture-tests` 通过。先用各自账号实际交接，再接通一个真实 FULL；正式矩阵保持未启动。不要把本轮 A 对旧 47 对的复验当作 B 已经完成新的 FULL 匹配。

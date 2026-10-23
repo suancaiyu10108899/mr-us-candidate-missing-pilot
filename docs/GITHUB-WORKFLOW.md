@@ -33,6 +33,8 @@ GitHub 用户名 / 认领角色：
 
 A 确认后登记 assignee；在群里口头分工不能代替这条记录。B/C/D 都需开发输入包，D 另需评价参考包，按 [DATA-HANDOFF](../DATA-HANDOFF.md) 验证。没有科研包时仍可以做人工开发，不重新训练来补输入。
 
+assignee 表示负责完成任务的人，PR 的 reviewer 表示负责审查这次改动的人；两者分别设置。填写认领信息后，由 A 在 Issue 右侧 **Assignees** 选择本人账号。尚未收到数据包可以如实写“未收到”，不必等收包才认领。
+
 ## 3. 在自己电脑安装与检查
 
 先确认已有 Git 和 Python 3.10–3.12：
@@ -89,6 +91,8 @@ git switch codex/preexp-matching
 git merge origin/codex/preexp-data
 ```
 
+同步后，B 按 [匹配接入说明](MATCHING-INTEGRATION.md) 检查实际生产实现：没有第二候选或 `d2 ≤ eps` 时，`ratio` 和 `ratio_pass` 均为 `null`；记录生成器、writer 的字段校验及写出结果须一致。随后补齐 `tests/test_matching.py` 并运行专用测试和全套测试。A 的接口测试不能替代这些数值边界测试；旧结果在相应边界上会触发 `BACKEND_CONTRACT_ERROR`。
+
 A PR #5 合入 main 后，共同基线改用 `origin/main`。已有本人分支通过 merge 同步，不重建仓库、不改写已推送历史。出现冲突时停下，记录冲突文件并与 A/相关作者确认，不默认覆盖另一方。
 
 只改自己认领的模块和对应测试。A 维护公共输入/CLI/协议；跨模块改动先在 Issue 说明。
@@ -117,10 +121,10 @@ git push -u origin codex/preexp-matching
 ## 6. 在网页开 Draft PR
 
 1. 打开仓库的 **Pull requests → New pull request**，或推送后出现的 **Compare & pull request**。
-2. 选择 base 和 compare。A PR #5 未合入时，B 可选 base=`codex/preexp-data`、compare=`codex/preexp-matching`；确认差异只展示 B 的改动。A 合入后由 A 协调把 base 改为 main，再检查 diff/CI。
+2. 选择 base 和 compare。A PR #5 未合入时，B 选 base=`codex/preexp-data`、compare=`codex/preexp-matching`；确认差异只展示 B 的改动。这个过渡期先用草稿展示和讨论，不把 B 的 PR 提前合入 A 分支。A 合入后由 A 协调把 base 改为 main，按需同步共同基线，再检查 diff/CI；改 base 可能影响原来的审查评论。
 3. 填标题和说明：解决什么问题、改了什么、输入/接口版本、实际测试命令与结果、未完成项。
 4. 尚未完成时选 **Create draft pull request**。已具备审查条件时选 **Create pull request**。
-5. 在对应 Issue 放 PR 链接和状态，指定约定的非作者复核角色。
+5. 在对应 Issue 放 PR 链接和状态，写明约定的非作者复核角色。草稿达到交付条件后点击 **Ready for review**，再按下一节正式请求审查。
 
 不要等所有代码完美才开草稿。PR 模板在 [.github/pull_request_template.md](../.github/pull_request_template.md)；模板进入默认 main 前，网页可能不自动填入，可手动复制。
 
@@ -128,13 +132,15 @@ Issue 包含后续科学交付时，代码初稿 PR 使用 `Refs #2` 等关联�
 
 ## 7. 审查、返修、合并
 
+PR 作者或 A 在右侧 **Reviewers** 选择约定审查人的 GitHub 账号，发出 review request；在群里说明分工不等于已经发出 GitHub 审查通知。PR #5 的首轮工程审查人是 B（`yibu1314`）；其他 PR 在角色确认后选择对应账号。审查者打开 PR 的 **Commits / Files changed / Checks**，核对当前最新 head 和该提交的 CI；旧提交上的检查或审查意见不能代替对更新内容的检查。
+
 审查者先读 PR 目标和证据，再到 **Files changed** 看具体差异，并运行能够复跑的检查。不要只看 CI 绿灯。确认新增生产函数确实被专用测试覆盖。
 
 - **Comment**：反馈意见，没有批准。
 - **Request changes**：需要作者修复后复查。
 - **Approve**：基于实际审查认可当前版本。
 
-作者在同一个任务分支修复、commit、push，原 PR 会更新；无需每次返修重开 PR。审查者检查新 commit，更新结论。先前批准可能因新改动失效，需要重新审查。
+作者在同一个任务分支修复、commit、push，原 PR 会更新；无需每次返修重开 PR。作者或 A 在 Reviewers 中重新请求复核，审查者检查新 commit，更新结论。先前批准可能因新改动失效，需要重新审查。
 
 工程审查首轮：B 审 A，C 审 B，D 审 C，A 审 D。D 对输入和科学评分的独立职责仍保留。审查不是必须批准；不懂的部分应指出，不能请 AI 代替本人承担确认。
 
@@ -151,7 +157,7 @@ gh auth login --web --git-protocol https
 gh auth status
 ```
 
-登录密码和 token 不交给群聊或 AI。AI 可以解释、检查 diff、辅助执行，但每次操作前本人应知道分支、文件和目标。可选命令例子：
+登录密码和 token 不交给群聊或 AI。AI 可以解释命令、检查 diff、协助编写测试和执行已明确的操作；每次操作前本人应知道分支、文件和目标。首次协作中，登录由本人完成，**Approve 由实际审查人理解改动后确认并操作，Merge 由 A 完成验收后确认并操作**。AI 的分析用于辅助判断，不能代替本人的审查结论或替其他账号批准。可选命令例子：
 
 ```powershell
 gh pr create --base codex/preexp-data --head codex/preexp-matching --draft

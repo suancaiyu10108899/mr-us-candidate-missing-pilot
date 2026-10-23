@@ -13,8 +13,8 @@
 | 角色 | 工作 | 起点 | 交付给谁 |
 |---|---|---|---|
 | A（用户） | 输入、协议与整合 | `src/mrus_missing/preparation/` | B/C/D，D 复核输入 |
-| B（待认领） | 描述子匹配 | `src/mrus_missing/matching/` | C 与 D，D 复核 |
-| C（待认领） | US_TO_MR 刚体拟合 | `src/mrus_missing/geometry/` | D，A 或 B 复核 |
+| B（待认领） | 描述子匹配 | `src/mrus_missing/matching/` | C 与 D；C 工程审查，D 独立评价 |
+| C（待认领） | US_TO_MR 刚体拟合 | `src/mrus_missing/geometry/` | D；D 工程审查与独立评价 |
 | D（待认领） | 独立评分与解释 | `src/mrus_missing/evaluation/` | A，B/C 抽查 |
 
 ## 快速开始
