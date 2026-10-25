@@ -17,9 +17,13 @@
 
 解析配置和数组使用通过哈希检查的同一份字节；不从另一个文件重复读取后直接信任。匹配请求不读取坐标载荷或评价参考。A 的完整 `verify-inputs` 仍负责按坐标复核空间删除；收件人先完成该验证，再使用交接指纹匹配。
 
+manifest 同样保留首次通过可信 SHA 检查的字节快照；读取结束时逐字节比较，纯空白或序列化格式变化也会拒绝。verified manifest 指纹来自该已验证快照，不以解析对象相等代替文件哈希相等。
+
 低层 B API 可服务小型人工例子，调用者仍须遵守合同。正式输入应经 A 的绑定入口；不要手工把 RAND_1 的数组传成 FULL。公共 runner 还会核对 B 返回的条件、方法、release、数量、查询 ID/顺序和配置，错误时在 writer 前拒绝。
 
 RUN/diagnostics 的 input_sha256 增加 A 的 verified_release_manifest_file、verified_conditions_file、verified_experiment_file、verified_condition_selection。它们是文件/名单指纹，与 B 原有数组内容 hash 分开，字段名不能互相冒充。
+
+writer 完成后，A 回读 RUN 和 diagnostics，按绑定请求核对 release_id、condition_id、method_id、protocol_version 和 SUCCESS 状态，再核对已验证 diagnostics 快照、运行元数据、配置、完整输入指纹和三个 payload 的哈希。落盘身份错位、缺字段、坏 JSON 或缺文件均返回 BACKEND_CONTRACT_ERROR，不报告匹配完成；失败输出保留供排查，下次使用新的输出目录。此项验证错误 writer 的拒收语义，不表示 B 的正常 writer 已出现这些错误。
 
 ## 未定义 ratio
 
