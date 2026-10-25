@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from .files import (canonical, check_seal, decode_json, digest, file_specs, read_csv, read_json, read_verified,
-                    require, seal, write_csv, write_json)
+                     require, seal, validate_release_id, write_csv, write_json)
 from .legacy import audit_source
 
 POINT_FIELDS = ["point_id", "descriptor_row", "i", "j", "k", "source_id"]
@@ -78,6 +78,7 @@ def _manifest(root: Path, name: str, schema: str, files: set[str], expected_sha2
     check_seal(m)
     require(m["schema_version"] == schema and set(m["files"]) == files,
             "release schema/file allowlist differs")
+    validate_release_id(m.get("release_id"))
     actual = {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}
     require(actual == files | {name}, "unexpected or missing release files")
     for key, spec in m["files"].items():
@@ -245,7 +246,7 @@ def prepare(source: Path, config: Path, output: Path, reference_output: Path) ->
     cfg = read_json(config)
     validate_config(cfg)
     lock = read_json(config.parent / "source-crosskey-v1.json")
-    require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", lock['release_id']) is not None, "invalid release ID")
+    validate_release_id(lock.get('release_id'))
     source, output, reference_output = source.resolve(), output.resolve(), reference_output.resolve()
     require(not output.exists() and not reference_output.exists(), "output already exists; never overwrite a release")
     require(not output.is_relative_to(source) and not reference_output.is_relative_to(source), "output must not alter source tree")

@@ -265,6 +265,68 @@ def test_packaging_separates_answers_and_roundtrips(source_case,tmp_path):
     verify_reference(ref,inp,first['reference_manifest_sha256'],expected_kind='synthetic_fixture')
 
 
+def _set_release_identity(case, release_id):
+    """Keep artificial envelopes/binding self-consistent, independent of name safety."""
+    path = case['output'] / 'manifest.json'
+    manifest = read_json(path)
+    manifest['release_id'] = release_id
+    manifest.pop('content_sha256')
+    replace_json(path, seal(manifest))
+    reference_path = case['reference_output'] / 'reference_manifest.json'
+    reference = read_json(reference_path)
+    reference.update(release_id=release_id, input_manifest_sha256=digest(path.read_bytes()))
+    reference.pop('content_sha256')
+    replace_json(reference_path, seal(reference))
+
+
+@pytest.mark.parametrize('release_id', [
+    '../escaped-review', r'..\escaped-review', '/escaped-review', r'C:\escaped-review',
+    'nested/release', '', '.', '..', 'a' * 65, None, 42,
+])
+def test_packaging_rejects_unsafe_release_id_before_writing(source_case, tmp_path, release_id):
+    prepared(source_case)
+    _set_release_identity(source_case, release_id)
+    output = tmp_path / 'delivery'
+    with pytest.raises(ValueError, match='invalid release ID'):
+        package_inputs(source_case['output'], source_case['reference_output'], output,
+                       expected_kind='synthetic_fixture')
+    assert not output.exists()
+    assert not list(tmp_path.rglob('*.zip'))
+
+
+@pytest.mark.parametrize('release_id', ['release.v1_A-9', 'a' * 64])
+def test_packaging_safe_release_id_stays_inside_output(source_case, tmp_path, release_id):
+    prepared(source_case)
+    _set_release_identity(source_case, release_id)
+    output = tmp_path / 'delivery'
+    result = package_inputs(source_case['output'], source_case['reference_output'], output,
+                            expected_kind='synthetic_fixture')
+    assert result['release_id'] == release_id
+    archives = list(tmp_path.rglob('*.zip'))
+    assert {p.name for p in archives} == {release_id + '-inputs.zip', release_id + '-reference.zip'}
+    assert all(p.parent.resolve() == output.resolve() for p in archives)
+
+
+def test_prepare_uses_same_release_id_validation(source_case):
+    source_case['lock']['release_id'] = None
+    replace_json(source_case['config'].parent / 'source-crosskey-v1.json', source_case['lock'])
+    with pytest.raises(ValueError, match='invalid release ID'):
+        prepared(source_case)
+    assert not source_case['output'].exists() and not source_case['reference_output'].exists()
+
+
+def test_packaging_preserves_existing_delivery(source_case, tmp_path):
+    prepared(source_case)
+    output = tmp_path / 'delivery'
+    package_inputs(source_case['output'], source_case['reference_output'], output,
+                   expected_kind='synthetic_fixture')
+    before = {p.name: p.read_bytes() for p in output.iterdir()}
+    with pytest.raises(ValueError, match='never overwrite'):
+        package_inputs(source_case['output'], source_case['reference_output'], output,
+                       expected_kind='synthetic_fixture')
+    assert {p.name: p.read_bytes() for p in output.iterdir()} == before
+
+
 def test_cli_prepare_calls_real_implementation(source_case,capsys):
     c=source_case
     args=['prepare','--source',str(c['source']),'--config',str(c['config']),

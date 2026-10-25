@@ -3,6 +3,7 @@ import csv
 import hashlib
 import io
 import json
+import re
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -10,6 +11,14 @@ from typing import Any
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
+
+
+def validate_release_id(value: object) -> str:
+    """Use one bounded filename-component rule at creation and consumption."""
+    require(isinstance(value, str)
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", value) is not None,
+            "invalid release ID")
+    return value
 
 
 def digest(data: bytes) -> str:

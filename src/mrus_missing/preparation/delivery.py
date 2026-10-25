@@ -2,7 +2,7 @@
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
-from .files import digest, require, write_json
+from .files import digest, require, validate_release_id, write_json
 from .release import INPUT_FILES, REFERENCE_FILES, verify_inputs, verify_reference
 
 
@@ -20,14 +20,16 @@ def package_inputs(release: Path, reference: Path, output: Path, *, expected_kin
     """Package verified files into two archives; old answers stay out of inputs."""
     inp = verify_inputs(release, expected_kind=expected_kind)
     ref = verify_reference(reference, release, expected_kind=expected_kind)
+    name = validate_release_id(inp.get('release_id'))
     output = output.resolve()
     require(not output.exists(), 'delivery output exists; never overwrite')
     require(not output.is_relative_to(release.resolve()) and not output.is_relative_to(reference.resolve()),
             'delivery must be outside immutable input folders')
+    targets = [(output / (name + suffix)).resolve() for suffix in ('-inputs.zip', '-reference.zip')]
+    require(all(target.parent == output for target in targets), 'archive path escapes delivery output')
     output.mkdir(parents=True, exist_ok=False)
-    name = inp['release_id']
-    prediction = _archive(release, INPUT_FILES | {'manifest.json'}, output / (name + '-inputs.zip'))
-    evaluation = _archive(reference, REFERENCE_FILES | {'reference_manifest.json'}, output / (name + '-reference.zip'))
+    prediction = _archive(release, INPUT_FILES | {'manifest.json'}, targets[0])
+    evaluation = _archive(reference, REFERENCE_FILES | {'reference_manifest.json'}, targets[1])
     result = {'schema_version': 'mrus-delivery/1', 'release_id': name, 'kind': expected_kind,
               'distribution': 'RESTRICTED_TEAM_HANDOFF', 'public_upload_authorized': False,
               'input_manifest_sha256': inp['manifest_sha256'],
