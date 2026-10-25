@@ -10,7 +10,7 @@
 | [C 几何 #3](https://github.com/suancaiyu10108899/mr-us-candidate-missing-pilot/issues/3) | US_TO_MR 变换或明确失败、内点、拟合测试和解释 | 用人工非零旋转平移与退化点集 |
 | [D 独立评价 #4](https://github.com/suancaiyu10108899/mr-us-candidate-missing-pilot/issues/4) | 输入独立复核、逐查询评分、检查、案例与解释 | 从手算分类开始，并复核 A 的真实输入 |
 
-在对应 Issue 按 [认领模板](docs/GITHUB-WORKFLOW.md#2-认领任务确认数据接收) 留下本人 GitHub 用户名、认领角色、当前分支/commit、环境检查、输入包校验结果、可用时间和首次交付日期；未收到数据包就如实注明。A 确认后在 Issue 的 Assignees 登记负责人。A 统一接口，模块内部问题由本人修复。仓库协作者权限与任务认领是两件事，已入仓也要在 Issue 登记。可以先阅读和运行本地人工检查。
+在对应 Issue 的 **Assignees** 选择自己即可认领，无需 A 审批，在群里同步分工。后续按 [进展记录示例](docs/GITHUB-WORKFLOW.md#2-认领任务确认数据接收) 简要补充分支/commit、环境或数据校验、PR链接与阻塞情况；未收到数据包不影响先认领和人工开发。A 统一接口，模块内部问题由本人修复。仓库协作者权限与任务认领是两件事，已入仓也要自行 assign 本人任务。
 
 ## 安装与第一条检查
 

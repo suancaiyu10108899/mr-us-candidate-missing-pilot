@@ -13,7 +13,7 @@
 
 新手按 [Git/PR 操作指南](docs/GITHUB-WORKFLOW.md) 完成真实交付。开发可以交错进行：C 先做人工几何、D 先做输入复核和手算评价，不必等上游全部合并。
 
-每人独立 clone 或 worktree，不共用可写 checkout。认领时按操作指南填写负责人、复核者、当前分支/commit、环境和数据校验状态、认领时间、可用时段和首次交付日期，由 A 确认并登记 Issue assignee；未收到数据时如实注明。B/C/D 未认领前不把 AI 补写登记为本人贡献。
+每人独立 clone 或 worktree，不共用可写 checkout。Issue 由本人自行 assign，并在群里同步分工，无需 A 审批。分支/commit、环境和数据校验、PR链接、计划和阻塞信息可随进展补充，不作为认领前置条件；未收到数据时如实注明。B/C/D 未认领前不把 AI 补写登记为本人贡献。
 
 通常先更新本地 main 并阅读最新公共接口，再开始自己的分支。当前 A 准备器先交付在 codex/preexp-data；合入 main 前，请按 START-HERE 取得该分支，并从该固定交付提交建立本人本地工作分支，避免从旧 main 丢失输入读取器。正式 PR 的 base/head 由 A 确认；A 合入后统一更新共同基线。接口变更先在 Issue 说明，由 A 统一维护；模块缺陷交回原负责人。仅 A 按已授权范围整合 main。
 

@@ -19,7 +19,9 @@
 
 ## 2. 认领任务，确认数据接收
 
-在自己的 [B #2](https://github.com/suancaiyu10108899/mr-us-candidate-missing-pilot/issues/2)、[C #3](https://github.com/suancaiyu10108899/mr-us-candidate-missing-pilot/issues/3) 或 [D #4](https://github.com/suancaiyu10108899/mr-us-candidate-missing-pilot/issues/4) 留言：
+打开自己的 [B #2](https://github.com/suancaiyu10108899/mr-us-candidate-missing-pilot/issues/2)、[C #3](https://github.com/suancaiyu10108899/mr-us-candidate-missing-pilot/issues/3) 或 [D #4](https://github.com/suancaiyu10108899/mr-us-candidate-missing-pilot/issues/4)，在右侧 **Assignees** 选择本人账号（或 **assign yourself**），即完成认领，无需 A 审批。在群里同步分工即可；多人想认领同一任务时先沟通，避免重复工作。
+
+后续可在 Issue 简要记录下面的信息，按实际进度补充，不作为认领或开工的前置条件：
 
 ```text
 GitHub 用户名 / 认领角色：
@@ -31,9 +33,9 @@ GitHub 用户名 / 认领角色：
 请求的复核角色：
 ```
 
-A 确认后登记 assignee；在群里口头分工不能代替这条记录。B/C/D 都需开发输入包，D 另需评价参考包，按 [DATA-HANDOFF](../DATA-HANDOFF.md) 验证。没有科研包时仍可以做人工开发，不重新训练来补输入。
+B/C/D 都需开发输入包，D 另需评价参考包，按 [DATA-HANDOFF](../DATA-HANDOFF.md) 验证。没有科研包时仍可以认领并做人工开发；未收到就如实注明，不重新训练来补输入。PR 链接、测试结果和阻塞原因留在 Issue，方便后续接手。
 
-assignee 表示负责完成任务的人，PR 的 reviewer 表示负责审查这次改动的人；两者分别设置。填写认领信息后，由 A 在 Issue 右侧 **Assignees** 选择本人账号。尚未收到数据包可以如实写“未收到”，不必等收包才认领。
+assignee 表示负责完成任务的人，PR 的 reviewer 表示负责审查这次改动的人；两者分别设置。Issue 自行认领，PR 合并仍须至少一位非作者批准、CI 通过并解决审查讨论。
 
 ## 3. 在自己电脑安装与检查
 
@@ -132,7 +134,7 @@ Issue 包含后续科学交付时，代码初稿 PR 使用 `Refs #2` 等关联�
 
 ## 7. 审查、返修、合并
 
-PR 作者或 A 在右侧 **Reviewers** 选择约定审查人的 GitHub 账号，发出 review request；在群里说明分工不等于已经发出 GitHub 审查通知。PR #5 的首轮工程审查人是 B（`yibu1314`）；其他 PR 在角色确认后选择对应账号。审查者打开 PR 的 **Commits / Files changed / Checks**，核对当前最新 head 和该提交的 CI；旧提交上的检查或审查意见不能代替对更新内容的检查。
+PR 作者或 A 在右侧 **Reviewers** 选择约定的非作者账号，发出 review request；在群里说明分工不等于已经发出 GitHub 审查通知。具体模块负责人以 Issue assignee 和群内沟通为准，不根据某次 reviewer 身份推断其模块角色。审查者打开 PR 的 **Commits / Files changed / Checks**，核对当前最新 head 和该提交的 CI；旧提交上的检查或审查意见不能代替对更新内容的检查。
 
 审查者先读 PR 目标和证据，再到 **Files changed** 看具体差异，并运行能够复跑的检查。不要只看 CI 绿灯。确认新增生产函数确实被专用测试覆盖。
 

@@ -7,15 +7,15 @@
 ## 给同学的第一步
 
 1. 阅读本页与 [公共协议](PROTOCOL.md)。
-2. 在 [GitHub Issues](https://github.com/suancaiyu10108899/mr-us-candidate-missing-pilot/issues) 认领本人任务，填写可用时间与复核人。
+2. 在 [GitHub Issues](https://github.com/suancaiyu10108899/mr-us-candidate-missing-pilot/issues) 自行 assign 本人任务，无需 A 审批，在群里同步分工。
 3. 运行下面的人工样例检查，再从本人模块和测试开始。A 负责公共接口；B/C/D 各自实现核心工作。
 
 | 角色 | 工作 | 起点 | 交付给谁 |
 |---|---|---|---|
 | A（用户） | 输入、协议与整合 | `src/mrus_missing/preparation/` | B/C/D，D 复核输入 |
-| B（待认领） | 描述子匹配 | `src/mrus_missing/matching/` | C 与 D；C 工程审查，D 独立评价 |
-| C（待认领） | US_TO_MR 刚体拟合 | `src/mrus_missing/geometry/` | D；D 工程审查与独立评价 |
-| D（待认领） | 独立评分与解释 | `src/mrus_missing/evaluation/` | A，B/C 抽查 |
+| B | 描述子匹配 | `src/mrus_missing/matching/` | C 与 D；C 工程审查，D 独立评价 |
+| C | US_TO_MR 刚体拟合 | `src/mrus_missing/geometry/` | D；D 工程审查与独立评价 |
+| D | 独立评分与解释 | `src/mrus_missing/evaluation/` | A，B/C 抽查 |
 
 ## 快速开始
 
