@@ -43,6 +43,36 @@ def test_bound_request_keeps_legacy_six_fields_and_no_coordinate_reads(bound_cas
     assert legacy['candidate_ids'] == request['inputs']['candidate_ids']
 
 
+@pytest.mark.parametrize('rewrite', ['whitespace', 'compact_json'])
+@pytest.mark.parametrize('trusted_hash', [True, False])
+def test_manifest_byte_change_during_read_rejected(bound_case, monkeypatch, rewrite, trusted_hash):
+    case, sha = bound_case
+    path = case['output'] / 'manifest.json'
+    original_read = Path.read_bytes
+    initial = original_read(path)
+    changed = initial + b' \n' if rewrite == 'whitespace' else json.dumps(
+        json.loads(initial), separators=(',', ':')).encode('utf-8')
+    assert json.loads(changed) == json.loads(initial)
+    assert digest(changed) != sha
+    reads = 0
+    def changing_read(candidate):
+        nonlocal reads
+        if candidate == path:
+            reads += 1
+            if reads == 2:
+                candidate.write_bytes(changed)
+        return original_read(candidate)
+    monkeypatch.setattr(Path, 'read_bytes', changing_read)
+    with pytest.raises(ValueError, match='manifest bytes changed'):
+        if trusted_hash:
+            load_matching_request(case['output'], 'RAND_1', 'MNN_RATIO', sha,
+                                  expected_kind='synthetic_fixture')
+        else:
+            load_matching_inputs(case['output'], 'RAND_1', expected_kind='synthetic_fixture')
+    assert reads == 2
+    assert original_read(path) == changed
+
+
 @pytest.mark.parametrize('condition,method,sha_override', [
     ('NOT_A_CONDITION','MNN',None), ('FULL','NOT_A_METHOD',None),
     ('FULL','MNN','0'*64), ('FULL','MNN',''),

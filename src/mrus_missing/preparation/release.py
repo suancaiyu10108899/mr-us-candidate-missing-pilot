@@ -69,7 +69,8 @@ def build_conditions(ids: list[str], points: np.ndarray, config: dict, input_sha
             "numerical_order": "original_us_descriptor_row", "conditions": result}
 
 
-def _manifest(root: Path, name: str, schema: str, files: set[str], expected_sha256=None, read_names=None) -> dict:
+def _manifest_snapshot(root: Path, name: str, schema: str, files: set[str],
+                       expected_sha256=None, read_names=None) -> tuple[dict, bytes]:
     path = root / name
     manifest_bytes = path.read_bytes()
     if expected_sha256:
@@ -85,7 +86,11 @@ def _manifest(root: Path, name: str, schema: str, files: set[str], expected_sha2
         require(spec["path"] == key, "file path must equal manifest key")
         if read_names is None or key in read_names:
             read_verified(root, spec)
-    return m
+    return m, manifest_bytes
+
+
+def _manifest(root: Path, name: str, schema: str, files: set[str], expected_sha256=None, read_names=None) -> dict:
+    return _manifest_snapshot(root, name, schema, files, expected_sha256, read_names)[0]
 
 
 def _points(path: Path, count: int) -> tuple[list[str], np.ndarray]:
@@ -137,8 +142,8 @@ def verify_inputs(release: Path, expected_sha256=None, *, expected_kind="researc
 def _matching_request(release: Path, condition_id: str, expected_sha256, expected_kind: str) -> dict:
     """Resolve labels and vectors together, reading no coordinates or reference."""
     names = {"mri_descriptors.npy", "us_descriptors.npy", "conditions.json", "experiment.json"}
-    m = _manifest(release, "manifest.json", "mrus-input-release/1", INPUT_FILES,
-                  expected_sha256, read_names=set())
+    m, manifest_bytes = _manifest_snapshot(release, "manifest.json", "mrus-input-release/1", INPUT_FILES,
+                                            expected_sha256, read_names=set())
     payloads = {name: read_verified(release, m['files'][name]) for name in names}
     config = decode_json(payloads['experiment.json'])
     validate_config(config)
@@ -174,11 +179,10 @@ def _matching_request(release: Path, condition_id: str, expected_sha256, expecte
             "candidate_source_rows": columns, "release_id": m['release_id']}
     # Manifest bytes are checked again so a changing directory cannot silently mix identities.
     final_manifest_bytes = (release / 'manifest.json').read_bytes()
-    final_manifest = decode_json(final_manifest_bytes)
-    require(final_manifest == m, 'input manifest changed while reading')
+    require(final_manifest_bytes == manifest_bytes, 'input manifest bytes changed while reading')
     return {'inputs': inputs, 'condition_id': condition_id, 'config': config, 'kind': m['kind'],
             'provenance': {
-                'release_manifest_file': digest(final_manifest_bytes),
+                'release_manifest_file': digest(manifest_bytes),
                 'conditions_file': digest(payloads['conditions.json']),
                 'experiment_file': digest(payloads['experiment.json']),
                 'condition_selection': digest(canonical([condition_id, keep, columns])),
