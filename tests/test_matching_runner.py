@@ -10,6 +10,7 @@ import pytest
 
 from test_preparation import source_case, prepared, reseal_release, replace_json
 from mrus_missing.cli import main
+from mrus_missing.errors import BackendContractError
 import mrus_missing.matching_runner as runner
 from mrus_missing.preparation import load_matching_inputs, load_matching_request
 from mrus_missing.preparation.files import digest, read_json
@@ -96,7 +97,10 @@ def transport_double(monkeypatch):
         payloads={'queries.csv':'query_id\n','pairs.csv':'query_id,candidate_id\n',
                   'match_diagnostics.json':json.dumps(result['diagnostics'])}
         for name,text in payloads.items():(output/name).write_text(text,encoding='utf-8')
-        run={**run_metadata,'input_sha256':result['diagnostics']['input_sha256'],
+        run={**run_metadata, **{k:result['diagnostics'][k] for k in
+                               ('release_id','condition_id','method_id','protocol_version','status')},
+             'configuration':result['diagnostics']['matching_config'],
+             'input_sha256':result['diagnostics']['input_sha256'],
              'output_sha256':{n:digest((output/n).read_bytes()) for n in payloads}}
         (output/'RUN.json').write_text(json.dumps(run),encoding='utf-8')
         return run
@@ -115,6 +119,80 @@ def test_runner_passes_one_bound_request_and_records_provenance(bound_case, tran
     assert len(seen['inputs']['candidate_ids'])==48
     run=read_json(out/'RUN.json')
     assert run['input_sha256']['verified_release_manifest_file']==sha and run['mode']=='debug'
+    assert {k:run[k] for k in ('release_id','condition_id','method_id','protocol_version','status')} == {
+        'release_id':seen['inputs']['release_id'], 'condition_id':'RAND_2',
+        'method_id':'MNN_RATIO', 'protocol_version':'1.0', 'status':'SUCCESS'}
+
+
+@pytest.mark.parametrize('location', ['run', 'diagnostics', 'both'])
+@pytest.mark.parametrize('field,bad_value', [
+    ('release_id','another-release'), ('condition_id','FULL'), ('method_id','MNN'),
+    ('protocol_version','9.9'), ('status','FAILURE'),
+])
+def test_persisted_identity_corruption_rejected(bound_case, transport_double, tmp_path,
+                                               location, field, bad_value):
+    case, sha = bound_case
+    backend, _ = transport_double
+    original = backend.write_match_outputs
+    def corrupt(result, output, *, run_metadata):
+        run = original(result, output, run_metadata=run_metadata)
+        if location in ('run', 'both'):
+            run[field] = bad_value
+        if location in ('diagnostics', 'both'):
+            path = output / 'match_diagnostics.json'
+            diagnostics = read_json(path)
+            diagnostics[field] = bad_value
+            replace_json(path, diagnostics)
+            # A self-consistent hash must not conceal wrong experiment identity.
+            run['output_sha256'][path.name] = digest(path.read_bytes())
+            result['diagnostics'][field] = bad_value
+        replace_json(output / 'RUN.json', run)
+        return run
+    backend.write_match_outputs = corrupt
+    with pytest.raises(BackendContractError, match='identity/status'):
+        runner.match_release(case['output'], 'RAND_1', 'MNN_RATIO', sha,
+                             tmp_path / 'bad-run', 'run-review', 'tester', 'synthetic_fixture')
+
+
+@pytest.mark.parametrize('mutation', ['missing_field', 'bad_json', 'not_object', 'bad_hash_map', 'missing_file'])
+def test_malformed_run_is_backend_contract_error(bound_case, transport_double, tmp_path, mutation):
+    case, sha = bound_case
+    backend, _ = transport_double
+    original = backend.write_match_outputs
+    def corrupt(result, output, *, run_metadata):
+        run = original(result, output, run_metadata=run_metadata)
+        path = output / 'RUN.json'
+        if mutation == 'missing_field':
+            run.pop('condition_id'); replace_json(path, run)
+        elif mutation == 'bad_json':
+            path.write_text('{invalid', encoding='utf-8')
+        elif mutation == 'not_object':
+            replace_json(path, [])
+        elif mutation == 'bad_hash_map':
+            run['output_sha256'] = []; replace_json(path, run)
+        else:
+            path.unlink()
+        return run
+    backend.write_match_outputs = corrupt
+    with pytest.raises(BackendContractError):
+        runner.match_release(case['output'], 'RAND_1', 'MNN_RATIO', sha,
+                             tmp_path / 'bad-run', 'run-review', 'tester', 'synthetic_fixture')
+
+
+def test_persisted_run_error_exits_four(transport_double, tmp_path, capsys):
+    backend, _ = transport_double
+    original = backend.write_match_outputs
+    def corrupt(result, output, *, run_metadata):
+        run = original(result, output, run_metadata=run_metadata)
+        run['condition_id'] = 'FULL'
+        replace_json(output / 'RUN.json', run)
+        return run
+    backend.write_match_outputs = corrupt
+    assert main(['match-fixture','--fixture',str(FIXTURE),'--config',str(CONFIG),'--method-id','MNN',
+                 '--output',str(tmp_path/'output'),'--run-id','fixture-bad-run','--operator','tester']) == 4
+    captured = capsys.readouterr()
+    assert not captured.out
+    assert json.loads(captured.err)['status'] == 'BACKEND_CONTRACT_ERROR'
 
 
 @pytest.mark.parametrize('bad_kind',['identity','config','nullable'])

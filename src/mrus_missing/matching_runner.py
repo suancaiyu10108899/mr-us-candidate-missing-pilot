@@ -77,7 +77,7 @@ def _check_result_identity(result: dict, request: dict) -> None:
     expected = {'condition_id': request['condition_id'], 'method_id': request['method_id'],
                 'release_id': inputs['release_id'], 'query_count': len(inputs['query_ids']),
                 'candidate_count': len(inputs['candidate_ids']), 'protocol_version': '1.0',
-                'dimension': inputs['mri_descriptors'].shape[1]}
+                'dimension': inputs['mri_descriptors'].shape[1], 'status': 'SUCCESS'}
     _contract_require(all(d.get(k) == v for k, v in expected.items()), 'backend output identity differs from bound request')
     _contract_require(d['matching_config'] == request['config']['matching'], 'backend changed matching configuration')
     _contract_require([q['query_id'] for q in result['queries']] == inputs['query_ids'], 'backend query IDs/order differ')
@@ -87,6 +87,33 @@ def _check_result_identity(result: dict, request: dict) -> None:
         _contract_require((q['ratio'] is None and q['ratio_pass'] is None)
                 or (q['ratio'] is not None and type(q['ratio_pass']) is bool),
                 'undefined ratio requires ratio_pass=null; backend contract repair needed')
+
+
+def _check_written_outputs(output: Path, request: dict, diagnostics: dict, metadata: dict) -> None:
+    """Validate persisted identity against the request, not just self-reported hashes."""
+    try:
+        run = read_json(output / 'RUN.json')
+        payloads = {name: (output / name).read_bytes()
+                    for name in ('queries.csv', 'pairs.csv', 'match_diagnostics.json')}
+        written_diagnostics = decode_json(payloads['match_diagnostics.json'])
+        identity = {'release_id': request['inputs']['release_id'],
+                    'condition_id': request['condition_id'], 'method_id': request['method_id'],
+                    'protocol_version': '1.0', 'status': 'SUCCESS'}
+        _contract_require(all(run.get(k) == v for k, v in identity.items()),
+                          'backend RUN identity/status differs from bound request')
+        _contract_require(all(written_diagnostics.get(k) == v for k, v in identity.items()),
+                          'backend written diagnostics identity/status differs from bound request')
+        _contract_require(written_diagnostics == diagnostics,
+                          'backend written diagnostics differs from validated result')
+        _contract_require(all(run.get(k) == v for k, v in metadata.items()), 'backend RUN metadata differs')
+        _contract_require(run['configuration'] == request['config']['matching'], 'backend RUN configuration differs')
+        _contract_require(run['input_sha256'] == diagnostics['input_sha256'], 'backend RUN input provenance differs')
+        for name, blob in payloads.items():
+            _contract_require(digest(blob) == run['output_sha256'][name], 'output hash mismatch')
+    except BackendContractError:
+        raise
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        raise BackendContractError('backend written output is missing, malformed or has an invalid schema') from None
 
 
 def _execute(request: dict, backend, api: str, output: Path, run_id: str, operator: str, command: str) -> dict:
@@ -116,16 +143,12 @@ def _execute(request: dict, backend, api: str, output: Path, run_id: str, operat
         'source_dirty': identity['source_dirty'], 'mode': 'debug', 'operator': operator,
         'command': command, 'dependencies': {'python': platform.python_version(), 'numpy': np.__version__},
         'started_at': started, 'ended_at': datetime.now(timezone.utc).isoformat()}
+    expected_diagnostics = copy.deepcopy(result['diagnostics'])
     try:
-        backend.write_match_outputs(result, output, run_metadata=metadata)
+        backend.write_match_outputs(result, output, run_metadata=copy.deepcopy(metadata))
     except (ValueError, KeyError, TypeError) as error:
         raise BackendContractError('backend writer rejected output: ' + str(error)) from None
-    run = read_json(output / 'RUN.json')
-    _contract_require(all(run.get(k) == v for k, v in metadata.items()), 'backend RUN metadata differs')
-    _contract_require(all(run['input_sha256'].get('verified_' + k) == v for k, v in request['provenance'].items()),
-            'backend RUN lost verified input provenance')
-    for name in ('queries.csv', 'pairs.csv', 'match_diagnostics.json'):
-        _contract_require(digest((output / name).read_bytes()) == run['output_sha256'][name], 'output hash mismatch')
+    _check_written_outputs(output, request, expected_diagnostics, metadata)
     return {'status': 'MATCH_COMPLETED_DEBUG', 'kind': request['kind'], 'run_id': run_id,
             'condition_id': request['condition_id'], 'method_id': request['method_id'],
             'query_count': len(result['queries']), 'accepted_count': len(result['pairs']),
