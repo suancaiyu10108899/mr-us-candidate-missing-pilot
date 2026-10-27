@@ -50,7 +50,7 @@ def test_invalid_interface_rejected(sample, mutation):
         validate_fixture(sample)
 
 
-@pytest.mark.parametrize("function", [match, fit, evaluate, summarize, run_matrix])
+@pytest.mark.parametrize("function", [match, fit, run_matrix])
 def test_production_shell_fails_without_reading_or_writing(function, tmp_path):
     args = {name: tmp_path / name for name in inspect.signature(function).parameters}
     with pytest.raises(StageNotImplemented):
@@ -60,8 +60,6 @@ def test_production_shell_fails_without_reading_or_writing(function, tmp_path):
 
 @pytest.mark.parametrize("command,fields", [
     ("fit", ["pairs", "mri-points", "us-points", "config", "output"]),
-    ("evaluate", ["release", "predictions", "reference", "output"]),
-    ("summarize", ["metrics", "query-evaluation", "output"]),
     ("run-matrix", ["release", "config", "output"]),
 ])
 def test_cli_unimplemented_exit_and_no_outputs(command, fields, tmp_path, capsys):
