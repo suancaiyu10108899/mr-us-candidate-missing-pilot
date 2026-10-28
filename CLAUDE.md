@@ -2,18 +2,15 @@
 
 ## HANDOFF
 
-- 正在执行 F-008（2026-10-28）：按用户“把1，2做了”审查 D PR #7，并处理 C/D 公共测试与 CLI 能力说明；预期交付可复跑的人工审查证据、A 公共接口修订及原 PR 更新。固定 C=e32129d、D=5782a33；不代写学生核心，不合并 PR，不运行真实 FULL/正式矩阵。开工 handover-check=PASS_WITH_NOTES（2026-10-28T12:28:19Z），doctor/lease=0，verify/comms 为既有备注；记录在本地忽略目录。
+- 最终验收目标：按用户 2026-10-28“把1，2做了”，完成 D PR #7 的实证审查，以及 C/D 公共测试、CLI 能力说明和人工组合验证；模块缺陷交原作者修复，不合并、不启动正式矩阵。
+- 当前交付：F-008 的 A 公共实现为 d4c73b0；status/help 按当前 checkout 分别报告 B/C/D API，公共测试保留全部阶段并区分缺实现与无效输入。说明见 docs/MODULE-INTEGRATION.md，审查反例在 review_tests/。发布与 GitHub 审查的实际回读保存在本地忽略目录 .local/F008-completion.json（形成后）及 GitHub PR，不凭本摘要推断已经合并。
+- 审查：固定 D=5782a33 原全套 121 passed/2 skipped；A 的人工审查正常对照 1 passed、16 个回归失败，归为 8 类身份/哈希、配对、拟合合法性、中位数与报告问题。固定 C=e32129d 在零接受 pairs 的公共接缝有 1 个失败，需由 C 修复；正常链通过不等于边界通过。
+- 实际验证：A 全套 115 passed/4 skipped；A+C 130 passed/4 skipped；A+D 131 passed/4 skipped；A+B+C+D 隔离组合 150 passed，含两种方法的人工 match→fit→evaluate→summarize。未交付模块造成的 skips 如实保留，不把反例排除在默认 CI 的安排称为算法验收。原件在 .local/F008-review/，汇总在 .local/F008-validation.json。
+- 版本与职责：B 的 79508e3 已有匹配 API，nullable ratio、专用测试与 PR 仍待本人；C/D 已有 PR #6/#7，不能再用“未实现骨架”概括各自分支。B=yibu1314、C=pyy62300、D=lil-wanglaoji 为 2026-10-28 Issue 快照，实际进度以 GitHub Issues 为准。本轮不调整 assignee、不代写核心。
+- 既有 A 返修：F-006 的打包安全、落盘身份、manifest 原字节绑定修复保留；PR #5 仍待 yibu1314 复审。Issue 本人自行 assign、群内同步，无 A 审批；PR 仍须非作者批准、CI 和讨论处理，由本人执行 Approve/Merge。
+- 科学状态：本轮 A 只执行 synthetic_fixture；真实 FULL 验收与正式矩阵未启动。C/D 曾报告真实输入本地 debug，不能笼统说全团队从未运行；其调试未独立验收。固定科研 input/reference/delivery 的 18 个文件哈希未变；不训练、不重新编码、不上传科研载荷。
+- 写域：仅本项目的 A 公共代码、测试和文档；旧来源只读，main 与 B/C/D 分支不改。新实现继续经现有 A PR #5 交付，PUBLIC feature 发布仍须适用的 fresh exact grant 与原生 hooks。最新远端状态以本地发布回执和 GitHub 为准。
+- 下一步：D 根据具体反例返修并补默认回归，C 修复空 pairs 的正常失败产物；同步 A 新公共测试，更新原 PR 再复审。B 本人工作并行继续。正式 FULL 和矩阵仍需后续明确启动，不以 CI 或 checks PASS 自动放行。
+- 机器门禁：收口 handover-check=PASS_WITH_NOTES（2026-10-28T12:45:17Z），doctor/lease=0，verify/comms 为已有全局备注；收口卡在 .local/F008-handover.json。无需普通同学安装维护者控制工具。
 
-- 最终验收目标：保留已交付的F-006返修，按用户2026-10-25决定把认领说明统一为本人自行assign、群里同步，无A审批；PR仍须非作者审查与CI，源码/数据/具体分工不变，不合并。
-- 当前：F-006已发布87e86dd，CI通过、三条回复和yibu1314复审请求已回读；F-007只同步认领流程文档与任务页。打包修复2ed4e32、落盘身份修复476867d、manifest字节绑定修复b93de40不变，审查结论待本人给出。
-- 科学运行：新 FULL 与矩阵 NOT_RUN。A 已复核历史输入；B 的 79508e3 分支已有匹配 API，专用测试/PR/CLI 接缝尚待完成；C/D 未见公开模块交付。不能把旧 HANDOFF 的未实现摘要当作 B 分支没有代码。
-- 写域：仅本项目。旧来源只读；数据、参考、完整运行产物与本机发布配置不进入公共 Git。
-- 协作：三位已加入仓库；Issue #2由pyy62300自行assign已生效，无需A审批；用户在群里协调分工。其他成员同样自行认领，技术进展可后补；本轮不调整任何assignee，也不按reviewer推断模块角色。进度以GitHub Issues为准。
-- 实际检查：三个核心回归在旧生产代码上3失败（均DID NOT RAISE），修复后3通过；A全套109 passed/2 skipped（缺B后端），新增40回归。固定A实现b93de40与B 79508e3的人工检出111 passed；两种人工CLI各4查询/3接受、合成64查询/48候选通过。原输入/参考/交付18文件hash不变；没有真实FULL或矩阵。原件见.local/F006-reproduce、F006-A-full.xml、F006-integration/evidence.json。
-- 公开协作：bootstrap c84275b 已公开，四 Issue 与 main 的 PR/非作者审查/fixture-tests 保护已生效。A 后续代码走 codex/preexp-data 和 PR，不直接推进 main；最新发布事实保存在本地精确发布记录与 GitHub。
-- 输入：七份来源清单/所需载荷哈希与身份通过，64 对唯一参照、旧47对原距离/ratio与原8探针通过；原描述子字节不变，7候选名单固定。D 尚未独立复核。旧算法未复制；数组只作获准团队交付，匿名公开再分发未授权。
-- 下一步：发布F-007文档修订并同步Issue/PR的认领措辞；保留已有复审请求，不重复通知或改人员分配。F-006证据在.local/F006-completion.json，F-007回读在.local/F007-completion.json；不自行解决线程、批准或合并。
-- 开工机器门禁：2026-10-23T13:33:38Z，PASS_WITH_NOTES；doctor/lease=0，verify/comms=1，保留全局既有备注。最终发布与收口机器记录留本地忽略目录。
-- 交接门禁：2026-10-19T12:26:21Z，handover-check=PASS_WITH_NOTES；doctor=0、lease=0、verify=1、comms=1。全局既有投影/通信备注保留，不冒称全局 clean。机器原件在本地忽略目录 `.local/handover-check.json`；本机租约已登记。
-
-快速检查见 README。此文件只摘要当前交接状态，不复制科学协议或 Issue 看板。公共 clone 无需维护者控制工具；本地 hooks 保持开启，后续公开发布仍需适用的精确授权。
+快速入口见 README、START-HERE 与 docs/MODULE-INTEGRATION.md；逐项审查事实见 PR #6/#7 和 records/F-008-review-and-public-interfaces.md。

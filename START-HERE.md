@@ -31,7 +31,7 @@ Windows 直接运行虚拟环境里的 Python，无需激活脚本。macOS/Linux
 .\.venv\Scripts\python.exe -m mrus_missing.cli inspect-fixture tests/fixtures/interface-v1.json
 ```
 
-本阶段 A 交付位于 `codex/preexp-data` 分支，main 继续遵守 PR/非作者审查。`status` 只报告当前 checkout 的能力，不检查科研历史。`prepare/verify-inputs/verify-reference/package-inputs` 和 A 的 `match/match-fixture` 调用链已实现；A 分支没有 B API 时会明确显示缺后端并退出3。合入 B 后才可调用数值匹配。fit/evaluate/summarize/run-matrix 仍待后续负责人实现。
+本阶段 A 交付位于 `codex/preexp-data` 分支，main 继续遵守 PR/非作者审查。`status` 只报告当前 checkout 的能力，不检查科研历史。`prepare/verify-inputs/verify-reference/package-inputs` 和 A 的 `match/match-fixture` 调用链已实现；A 分支没有 B API 时会明确显示缺后端并退出3。C/D 已在各自 PR 交付初版，是否能调用 fit/evaluate/summarize 以当前 checkout 的 `stage_apis_in_this_checkout` 为准；A 单独分支仍为占位。run-matrix 保持未实现。同步公共测试与审查返修见 [C/D 接入说明](docs/MODULE-INTEGRATION.md)。
 
 测试全部使用人工材料，CI 不接研究数据。`tests/test_preparation.py` 自己构造完整的人工来源，覆盖 A 的生产程序；里面的“47 对”只是测试规模约定，不是科研输出。
 

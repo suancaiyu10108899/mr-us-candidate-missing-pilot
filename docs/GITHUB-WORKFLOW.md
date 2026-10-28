@@ -63,7 +63,7 @@ git log -1 --oneline
 
 Windows 全程直接调用虚拟环境里的 Python，无需运行 Activate.ps1。macOS/Linux 将 `.\.venv\Scripts\python.exe` 换成 `.venv/bin/python`。
 
-成功标志：包安装成功；测试没有失败；你知道当前分支/commit；status 能区分当前 checkout 有无 B API。A 分支缺 B 时，相关人工接缝测试会明确 skipped，不表示 B 算法已通过。
+成功标志：包安装成功；测试没有失败；你知道当前分支/commit；status 能分别显示当前 checkout 的 B/C/D API。缺模块时，相应人工接缝测试会明确 skipped，不表示算法已通过。C/D 同步公共测试的具体处理见 [接入说明](MODULE-INTEGRATION.md)。
 
 首次 commit 前确认本仓 Git 作者身份；下面两项请填自己的值：
 

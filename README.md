@@ -39,7 +39,7 @@ Windows 无需激活脚本，直接用虚拟环境里的 Python。Linux/macOS �
 
 以上命令在项目根目录运行，始终使用同一个虚拟环境。首次操作、分支同步与 PR 按钮说明见 [Git/PR 新手指南](docs/GITHUB-WORKFLOW.md)。
 
-`prepare / verify-inputs / verify-reference / package-inputs` 已实现，可整理固定旧产物、校验和打包。`match / match-fixture` 是 A 的调用链，当前分支须包含 B API 才会执行匹配；缺后端时退出3。`fit / evaluate / summarize / run-matrix` 仍为未实现。`inspect-fixture` 只检查人工接口。
+`prepare / verify-inputs / verify-reference / package-inputs` 已实现，可整理固定旧产物、校验和打包。`match / match-fixture` 是 A 的调用链，当前分支须包含 B API 才会执行匹配；缺后端时退出3。`fit / evaluate / summarize` 是否可用取决于当前 checkout 是否接入 C/D，`status` 与子命令帮助分别报告其能力；A 单独分支仍只有这些模块的占位入口。`run-matrix` 保持未实现。`inspect-fixture` 只检查人工接口，API 可用不代表算法已验收。
 
 维护者已有获准的旧项目副本时，可重复准备到两个全新目录：
 
@@ -64,6 +64,7 @@ Windows 无需激活脚本，直接用虚拟环境里的 Python。Linux/macOS �
 - [CONTRIBUTING.md](CONTRIBUTING.md)：写域、首轮工程审查与交付要求。
 - [Git/PR 新手指南](docs/GITHUB-WORKFLOW.md)：从认领、分支、测试到提交、审查、返修的具体操作。
 - [匹配接入合同](docs/MATCHING-INTEGRATION.md)：条件和来源绑定、CLI、诊断字段以及 A/B 各自待办。
+- [C/D 接入与审查交接](docs/MODULE-INTEGRATION.md)：公共状态、占位测试迁移、人工反例与组合验证。
 - [CLAUDE.md](CLAUDE.md)：当前交接摘要；Issues 是唯一任务进度来源。
 
 公开仓只承载代码、协议、人工样例与不含载荷的交付指纹。真实描述子、坐标和参考独立打包，由 A 通过获准渠道交付；当前不提供匿名科研数组下载。仓库公开不授予研究数据分发权。
