@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from mrus_missing.cli import main, run_matrix
+from mrus_missing.capabilities import stage_capabilities
 from mrus_missing.contracts import inspect_fixture, validate_fixture
 from mrus_missing.errors import StageNotImplemented
 from mrus_missing.evaluation import evaluate, summarize
@@ -51,9 +52,12 @@ def test_invalid_interface_rejected(sample, mutation):
 
 
 @pytest.mark.parametrize("function", [match, fit, evaluate, summarize, run_matrix])
-def test_production_shell_fails_without_reading_or_writing(function, tmp_path):
+def test_stage_missing_inputs_do_not_write(function, tmp_path):
     args = {name: tmp_path / name for name in inspect.signature(function).parameters}
-    with pytest.raises(StageNotImplemented):
+    # The legacy match() shell is separate from A's match_release() runner.
+    available = function is not match and stage_capabilities().get(function.__name__, False)
+    expected = (OSError, ValueError) if available else StageNotImplemented
+    with pytest.raises(expected):
         function(**args)
     assert list(tmp_path.iterdir()) == []
 
@@ -64,14 +68,15 @@ def test_production_shell_fails_without_reading_or_writing(function, tmp_path):
     ("summarize", ["metrics", "query-evaluation", "output"]),
     ("run-matrix", ["release", "config", "output"]),
 ])
-def test_cli_unimplemented_exit_and_no_outputs(command, fields, tmp_path, capsys):
+def test_cli_missing_inputs_exit_and_no_outputs(command, fields, tmp_path, capsys):
     args = [command]
     for field in fields:
         args.extend(["--" + field, "MNN" if field == "method-id" else str(tmp_path / field)])
-    assert main(args) == 3
+    available = stage_capabilities()[command.replace('-', '_')]
+    assert main(args) == (2 if available else 3)
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert json.loads(captured.err)["status"] == "NOT_IMPLEMENTED"
+    assert json.loads(captured.err)["status"] == ("INVALID_INPUT" if available else "NOT_IMPLEMENTED")
     assert list(tmp_path.iterdir()) == []
 
 
