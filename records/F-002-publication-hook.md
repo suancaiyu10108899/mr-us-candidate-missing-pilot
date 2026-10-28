@@ -1,5 +1,7 @@
 # F-002：精确项目公开发布门禁
 
+> 历史首发执行补记：原计划拟让初始 grant 绑定项目适配 hook，实际 checker 另强制 canonical 初始 hook。最终采用 canonical hook 完成 PRIVATE 首发与 consume，再恢复本仓适配 hook，随后切换 PUBLIC。首次拒绝的 grant 未使用。以下“将绑定”是形成时方案，不代表最终首发使用了适配脚本；实际身份以首发不可变收据为准。main 和四 Issue 均已建立。
+
 - 日期：2026-10-19；目标链：CLAUDE 本轮公开骨架目标。
 - 必要性：维护者原模板只接受 PRIVATE；本项目获用户批准公开，需要精确适配而非关闭 hook。
 - 来源：维护者自有 Python 项目模板 pre-push rev7；不修改全局模板或控制工具。

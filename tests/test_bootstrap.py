@@ -6,12 +6,12 @@ from pathlib import Path
 import pytest
 
 from mrus_missing.cli import main, run_matrix
+from mrus_missing.capabilities import stage_capabilities
 from mrus_missing.contracts import inspect_fixture, validate_fixture
 from mrus_missing.errors import StageNotImplemented
 from mrus_missing.evaluation import evaluate, summarize
 from mrus_missing.geometry import fit
 from mrus_missing.matching import match
-from mrus_missing.preparation import prepare
 
 FIXTURE = Path(__file__).parent / "fixtures" / "interface-v1.json"
 
@@ -51,30 +51,32 @@ def test_invalid_interface_rejected(sample, mutation):
         validate_fixture(sample)
 
 
-@pytest.mark.parametrize("function", [prepare, match, fit, evaluate, summarize, run_matrix])
-def test_production_shell_fails_without_reading_or_writing(function, tmp_path):
+@pytest.mark.parametrize("function", [match, fit, evaluate, summarize, run_matrix])
+def test_stage_missing_inputs_do_not_write(function, tmp_path):
     args = {name: tmp_path / name for name in inspect.signature(function).parameters}
-    with pytest.raises(StageNotImplemented):
+    # The legacy match() shell is separate from A's match_release() runner.
+    available = function is not match and stage_capabilities().get(function.__name__, False)
+    expected = (OSError, ValueError) if available else StageNotImplemented
+    with pytest.raises(expected):
         function(**args)
     assert list(tmp_path.iterdir()) == []
 
 
 @pytest.mark.parametrize("command,fields", [
-    ("prepare", ["source", "config", "output"]),
-    ("match", ["mri-descriptors", "us-descriptors", "conditions", "condition-id", "method-id", "output"]),
     ("fit", ["pairs", "mri-points", "us-points", "config", "output"]),
     ("evaluate", ["release", "predictions", "reference", "output"]),
     ("summarize", ["metrics", "query-evaluation", "output"]),
     ("run-matrix", ["release", "config", "output"]),
 ])
-def test_cli_unimplemented_exit_and_no_outputs(command, fields, tmp_path, capsys):
+def test_cli_missing_inputs_exit_and_no_outputs(command, fields, tmp_path, capsys):
     args = [command]
     for field in fields:
         args.extend(["--" + field, "MNN" if field == "method-id" else str(tmp_path / field)])
-    assert main(args) == 3
+    available = stage_capabilities()[command.replace('-', '_')]
+    assert main(args) == (2 if available else 3)
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert json.loads(captured.err)["status"] == "NOT_IMPLEMENTED"
+    assert json.loads(captured.err)["status"] == ("INVALID_INPUT" if available else "NOT_IMPLEMENTED")
     assert list(tmp_path.iterdir()) == []
 
 
@@ -89,6 +91,7 @@ def test_predictors_have_no_reference_argument(tmp_path):
 
 def test_working_cli_status_and_fixture(capsys):
     assert main(["status"]) == 0
-    assert json.loads(capsys.readouterr().out)["scientific_runs"] == "NOT_RUN"
+    state = json.loads(capsys.readouterr().out)
+    assert state['scientific_run_history'] == 'NOT_INSPECTED' and state['execution_by_status'] is False
     assert main(["inspect-fixture", str(FIXTURE)]) == 0
     assert json.loads(capsys.readouterr().out)["status"] == "STRUCTURE_VALID"
