@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 from typing import Sequence
 
+from mrus_missing.capabilities import stage_capabilities
 from mrus_missing.contracts import inspect_fixture
 from mrus_missing.errors import BackendContractError, StageNotImplemented
 from mrus_missing.evaluation import evaluate, summarize
@@ -21,8 +22,8 @@ def run_matrix(release: Path, config: Path, output: Path) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Expose future inputs without implementing scientific stages."""
-    parser = argparse.ArgumentParser(description="Pilot input tools and debug matching; no matrix execution")
+    """Describe the APIs available in this checkout without executing them."""
+    parser = argparse.ArgumentParser(description="Pilot input tools and module debug commands; no matrix execution")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("status", help="show APIs available in this checkout; not a run-history audit")
     fixture = sub.add_parser("inspect-fixture", help="validate synthetic interface only")
@@ -39,9 +40,24 @@ def build_parser() -> argparse.ArgumentParser:
         "summarize": (summarize, ("metrics", "query_evaluation", "output")),
         "run-matrix": (run_matrix, ("release", "config", "output")),
     }
+    available = stage_capabilities()
+    descriptions = {
+        "prepare": "prepare a new input release and separate reference package",
+        "verify-inputs": "verify an input release",
+        "verify-reference": "verify a reference package and its input binding",
+        "package-inputs": "package verified inputs for team delivery",
+        "match": "debug matching using the B backend",
+        "match-fixture": "debug matching on a synthetic fixture",
+        "fit": "debug rigid fitting using the C backend",
+        "evaluate": "debug independent scoring using the D backend",
+        "summarize": "summarize supplied evaluation outputs using the D backend",
+        "run-matrix": "formal matrix orchestration",
+    }
     for name, (handler, fields) in specs.items():
-        implemented = name in ('prepare', 'verify-inputs', 'verify-reference', 'package-inputs', 'match', 'match-fixture')
-        stage = sub.add_parser(name, help="A input/matching integration; matching needs B API" if implemented else "NOT_IMPLEMENTED production interface")
+        description = descriptions[name]
+        if not available[name.replace('-', '_')]:
+            description += " (NOT_IMPLEMENTED in this checkout)"
+        stage = sub.add_parser(name, help=description, description=description)
         for field in fields:
             options = {"required": True, "type": str if field.endswith("_id") or field in ('expected_sha256', 'operator') else Path}
             if field == "method_id":
@@ -62,9 +78,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.command == "status":
-            result = {'project_state': 'A_INPUT_AND_MATCHING_INTEGRATION',
+            result = {'project_state': 'MODULE_INTEGRATION_IN_PROGRESS',
                       'matching_apis_in_this_checkout': matching_capabilities(),
-                      'fit_evaluate_matrix': 'NOT_IMPLEMENTED', 'matrix_rows_planned': 14,
+                      'stage_apis_in_this_checkout': stage_capabilities(),
+                      'algorithm_acceptance': 'NOT_ASSESSED', 'matrix_rows_planned': 14,
                       'scientific_run_history': 'NOT_INSPECTED', 'execution_by_status': False}
         elif args.command == "inspect-fixture":
             result = inspect_fixture(args.path)
