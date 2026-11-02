@@ -12,8 +12,10 @@ from __future__ import annotations
 
 import csv
 import json
+import statistics as stats
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from mrus_missing.evaluation import evaluate, summarize
@@ -356,3 +358,180 @@ def test_summarize_writes_report(tmp_path):
     assert summary["rows"] == 2
     text = (tmp_path / "report" / "report.md").read_text(encoding="utf-8")
     assert "FULL" in text and "MNN_RATIO" in text
+
+
+# --------------------------------------------------------------------------
+# PR #7 审查回归：身份、载荷、配对、拟合、中位数与报告
+# --------------------------------------------------------------------------
+def reseal_reference(reference: Path) -> None:
+    document = json.loads((reference / "reference_manifest.json").read_text(encoding="utf-8"))
+    document.pop("content_sha256", None)
+    document["files"] = file_specs(reference, ["reference.json", "correspondences.csv"])
+    _write_json(reference / "reference_manifest.json", seal(document))
+
+
+def write_fit(run: Path, **changes) -> None:
+    pairs_sha = digest((run / "pairs.csv").read_bytes())
+    transform = {
+        "direction": "US_TO_MR", "unit": "index_unit", "status": "SUCCESS",
+        "R": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        "t": [0.0, 0.0, 0.0], "pairs_sha256": pairs_sha, "source_commit": "a" * 40,
+    }
+    transform.update(changes)
+    _write_json(run / "transform.json", transform)
+    _write_json(run / "fit_diagnostics.json", {
+        "status": transform.get("status", "SUCCESS"), "final_inlier_count": 1,
+        "pair_count": 1, "pairs_sha256": transform.get("pairs_sha256"),
+        "source_commit": "a" * 40,
+    })
+
+
+def test_tampered_input_payload_is_rejected(tmp_path):
+    release, reference, preds = build_case(
+        tmp_path, accepted_full={"q1": "u1", "q2": None, "q3": None})
+    path = release / "mri_points.csv"
+    rows = read_csv(path)
+    rows[0]["i"] = str(float(rows[0]["i"]) + 20)
+    _write_csv(path, rows, list(rows[0]))  # 保留原 manifest 哈希
+    with pytest.raises(ValueError, match="SHA-256|payload"):
+        evaluate(release, preds, reference, tmp_path / "out")
+
+
+def test_reference_bound_to_other_input_is_rejected(tmp_path):
+    release, reference, preds = build_case(
+        tmp_path, accepted_full={"q1": "u1", "q2": None, "q3": None})
+    document = json.loads((reference / "reference_manifest.json").read_text(encoding="utf-8"))
+    document.pop("content_sha256", None)
+    document["input_manifest_sha256"] = "0" * 64
+    _write_json(reference / "reference_manifest.json", seal(document))
+    with pytest.raises(ValueError, match="reference"):
+        evaluate(release, preds, reference, tmp_path / "out")
+
+
+def test_changed_prediction_payload_is_rejected(tmp_path):
+    release, reference, preds = build_case(
+        tmp_path, accepted_full={"q1": "u1", "q2": None, "q3": None})
+    path = preds / "full_mnn" / "queries.csv"
+    rows = read_csv(path)
+    rows[0]["d1"] = "123.0"
+    _write_csv(path, rows, list(rows[0]))  # 不更新 RUN.output_sha256
+    with pytest.raises(ValueError, match="output_sha256"):
+        evaluate(release, preds, reference, tmp_path / "out")
+
+
+@pytest.mark.parametrize("field,value", [
+    ("status", "ERROR"),
+    ("protocol_version", "9.0"),
+    ("input_sha256", {"verified_release_manifest_file": "0" * 64}),
+])
+def test_failed_or_mixed_prediction_identity_is_rejected(tmp_path, field, value):
+    release, reference, preds = build_case(
+        tmp_path, accepted_full={"q1": "u1", "q2": None, "q3": None})
+    path = preds / "full_mnn" / "RUN.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document[field] = value
+    _write_json(path, document)
+    with pytest.raises(ValueError):
+        evaluate(release, preds, reference, tmp_path / "out")
+
+
+def test_fit_from_different_pairs_is_rejected(tmp_path):
+    release, reference, preds = build_case(
+        tmp_path, accepted_full={"q1": "u1", "q2": None, "q3": None})
+    write_fit(preds / "full_ratio", pairs_sha256="0" * 64)
+    with pytest.raises(ValueError, match="pairs_sha256"):
+        evaluate(release, preds, reference, tmp_path / "out")
+
+
+@pytest.mark.parametrize("change", [
+    {"R": [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]},
+    {"R": None},
+    {"direction": "MR_TO_US"},
+    {"unit": "mm"},
+])
+def test_invalid_successful_transform_is_rejected(tmp_path, change):
+    release, reference, preds = build_case(
+        tmp_path, accepted_full={"q1": "u1", "q2": None, "q3": None})
+    write_fit(preds / "full_ratio", **change)
+    with pytest.raises(ValueError):
+        evaluate(release, preds, reference, tmp_path / "out")
+
+
+def test_eight_probe_median_averages_middle_two(tmp_path):
+    release, reference, preds = build_case(
+        tmp_path, accepted_full={"q1": "u1", "q2": None, "q3": None})
+    probes = [[i * 10.0, j * 5.0, k * 7.0] for i in (0, 1) for j in (0, 1) for k in (0, 1)]
+    document = json.loads((reference / "reference.json").read_text(encoding="utf-8"))
+    document["probes_us"] = probes
+    _write_json(reference / "reference.json", document)
+    reseal_reference(reference)
+    rotation = np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]])
+    translation = np.array([1.1, -3.3, 0.4])
+    write_fit(preds / "full_ratio", R=rotation.tolist(), t=translation.tolist())
+    evaluate(release, preds, reference, tmp_path / "out")
+    rows = read_csv(tmp_path / "out" / "metrics.csv")
+    ratio = next(r for r in rows if r["condition_id"] == "FULL" and r["method_id"] == "MNN_RATIO")
+    errors = np.linalg.norm(np.asarray(probes) @ rotation.T + translation - np.asarray(probes), axis=1)
+    assert len(errors) == 8
+    assert float(ratio["probe_median"]) == pytest.approx(stats.median(errors))
+
+
+def test_duplicate_pairs_are_rejected(tmp_path):
+    release, reference, preds = build_case(
+        tmp_path, accepted_full={"q1": "u1", "q2": None, "q3": None})
+    run = preds / "full_ratio"
+    rows = read_csv(run / "pairs.csv")
+    _write_csv(run / "pairs.csv", rows + rows[:1], list(rows[0]))
+    refresh_run(run)
+    with pytest.raises(ValueError, match="重复"):
+        evaluate(release, preds, reference, tmp_path / "out")
+
+
+def test_candidate_outside_condition_is_rejected(tmp_path):
+    release, reference, preds = build_case(
+        tmp_path, accepted_full={"q1": "u1", "q2": None, "q3": None})
+    run = preds / "full_ratio"
+    rows = read_csv(run / "queries.csv")
+    for row in rows:
+        row["condition_id"] = "RAND_1"
+        if row["query_id"] == "q1":
+            row["accepted"] = "true"
+            row["accepted_candidate_id"] = "u1"   # u1 在 RAND_1 中已被删除
+    _write_csv(run / "queries.csv", rows, list(rows[0]))
+    _write_csv(run / "pairs.csv", [{"condition_id": "RAND_1", "method_id": "MNN_RATIO",
+                                    "query_id": "q1", "candidate_id": "u1"}],
+               ["condition_id", "method_id", "query_id", "candidate_id"])
+    for name in ("RUN.json", "match_diagnostics.json"):
+        document = json.loads((run / name).read_text(encoding="utf-8"))
+        document["condition_id"] = "RAND_1"
+        _write_json(run / name, document)
+    refresh_run(run)
+    with pytest.raises(ValueError, match="保留集合"):
+        evaluate(release, preds, reference, tmp_path / "out")
+
+
+def test_summary_does_not_overwrite_existing_report(tmp_path):
+    release, reference, preds = build_case(
+        tmp_path, accepted_full={"q1": "u1", "q2": None, "q3": None})
+    out = tmp_path / "out"
+    evaluate(release, preds, reference, out)
+    report = tmp_path / "report"
+    summarize(out / "metrics.csv", out / "query_evaluation.csv", report)
+    (report / "report.md").write_text("keep this original report", encoding="utf-8")
+    with pytest.raises(ValueError, match="已存在"):
+        summarize(out / "metrics.csv", out / "query_evaluation.csv", report)
+    assert (report / "report.md").read_text(encoding="utf-8") == "keep this original report"
+
+
+def test_summary_rejects_mixed_sources(tmp_path):
+    release, reference, preds = build_case(
+        tmp_path, accepted_full={"q1": "u1", "q2": None, "q3": None})
+    out = tmp_path / "out"
+    evaluate(release, preds, reference, out)
+    path = out / "query_evaluation.csv"
+    rows = read_csv(path)
+    for row in rows:
+        row["condition_id"] = "RAND_1"
+    _write_csv(path, rows, list(rows[0]))
+    with pytest.raises(ValueError):
+        summarize(out / "metrics.csv", path, tmp_path / "report")
