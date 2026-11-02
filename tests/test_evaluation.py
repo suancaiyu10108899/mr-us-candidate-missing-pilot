@@ -26,6 +26,7 @@ from mrus_missing.evaluation.scoring import (
     metrics_from_counts,
     reference_error,
 )
+from mrus_missing.preparation.files import digest, file_specs, seal
 
 
 # --------------------------------------------------------------------------
@@ -38,43 +39,55 @@ def _write_csv(path: Path, rows: list[dict], fields: list[str]) -> None:
         writer.writerows(rows)
 
 
+def _write_json(path: Path, value: dict) -> None:
+    path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+
+
 def make_release(root: Path, conditions: dict, mri: list[tuple], us: list[tuple],
                  release_id: str = "synthetic-release") -> Path:
     root.mkdir(parents=True, exist_ok=True)
-    (root / "manifest.json").write_text(json.dumps({"release_id": release_id}), encoding="utf-8")
     (root / "conditions.json").write_text(json.dumps({"conditions": [
         {"condition_id": name, "keep_ids": keep} for name, keep in conditions.items()
     ]}), encoding="utf-8")
+    _write_json(root / "experiment.json", {"release_id": release_id})
     for name, points in (("mri", mri), ("us", us)):
         _write_csv(root / f"{name}_points.csv", [
             {"point_id": pid, "descriptor_row": row, "i": xyz[0], "j": xyz[1], "k": xyz[2]}
             for row, (pid, xyz) in enumerate(points)
         ], ["point_id", "descriptor_row", "i", "j", "k"])
+    names = ["mri_points.csv", "us_points.csv", "conditions.json", "experiment.json"]
+    _write_json(root / "manifest.json", seal({
+        "schema_version": "mrus-input-release/1",
+        "release_id": release_id,
+        "files": file_specs(root, names),
+    }))
     return root
 
 
-def make_reference(root: Path, pairs: list[tuple], probes: list[tuple] | None = None) -> Path:
+def make_reference(root: Path, pairs: list[tuple], release: Path,
+                   probes: list[tuple] | None = None) -> Path:
     root.mkdir(parents=True, exist_ok=True)
-    (root / "reference.json").write_text(json.dumps({
+    _write_json(root / "reference.json", {
         "direction": "US_TO_MR", "correctness_threshold": 0.5,
         "R": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         "t": [0.0, 0.0, 0.0], "probes_us": probes or [],
-    }), encoding="utf-8")
+    })
     _write_csv(root / "correspondences.csv",
                [{"query_id": q, "candidate_id": c} for q, c in pairs],
                ["query_id", "candidate_id"])
-    (root / "reference_manifest.json").write_text("{}", encoding="utf-8")
+    names = ["reference.json", "correspondences.csv"]
+    _write_json(root / "reference_manifest.json", seal({
+        "schema_version": "mrus-evaluation-reference/1",
+        "input_manifest_sha256": digest((release / "manifest.json").read_bytes()),
+        "files": file_specs(root, names),
+    }))
     return root
 
 
-def make_run(root: Path, condition: str, method: str, accepted: dict,
+def make_run(root: Path, condition: str, method: str, accepted: dict, release: Path,
              release_id: str = "synthetic-release") -> Path:
     """accepted: {query_id: candidate_id 或 None}。"""
     root.mkdir(parents=True, exist_ok=True)
-    (root / "RUN.json").write_text(json.dumps({
-        "run_id": f"{condition}-{method}", "condition_id": condition,
-        "method_id": method, "release_id": release_id,
-    }), encoding="utf-8")
     queries, pairs = [], []
     for row, (query_id, candidate_id) in enumerate(accepted.items()):
         entry = {
@@ -92,7 +105,27 @@ def make_run(root: Path, condition: str, method: str, accepted: dict,
                           "query_id": query_id, "candidate_id": candidate_id})
     _write_csv(root / "queries.csv", queries, list(queries[0]))
     _write_csv(root / "pairs.csv", pairs, ["condition_id", "method_id", "query_id", "candidate_id"])
+    identity = {"condition_id": condition, "method_id": method,
+                "release_id": release_id, "protocol_version": "1.0", "status": "SUCCESS"}
+    inputs = {
+        "verified_release_manifest_file": digest((release / "manifest.json").read_bytes()),
+        "verified_conditions_file": digest((release / "conditions.json").read_bytes()),
+        "verified_experiment_file": digest((release / "experiment.json").read_bytes()),
+    }
+    _write_json(root / "match_diagnostics.json", {**identity, "input_sha256": inputs,
+                                                  "query_count": len(queries)})
+    _write_json(root / "RUN.json", {**identity, "run_id": f"{condition}-{method}",
+                                    "input_sha256": inputs})
+    refresh_run(root)
     return root
+
+
+def refresh_run(run: Path) -> None:
+    document = json.loads((run / "RUN.json").read_text(encoding="utf-8"))
+    document["output_sha256"] = {
+        name: digest((run / name).read_bytes())
+        for name in ("queries.csv", "pairs.csv", "match_diagnostics.json")}
+    _write_json(run / "RUN.json", document)
 
 
 # --------------------------------------------------------------------------
@@ -169,13 +202,13 @@ def build_case(root: Path, accepted_full: dict, accepted_rand: dict | None = Non
     )
     reference = make_reference(root / "reference",
                                pairs=[("q1", "u1"), ("q2", "u2"), ("q3", "u3")],
-                               probes=[(0, 0, 0)])
+                               release=release, probes=[(0, 0, 0)])
     preds = root / "preds"
-    make_run(preds / "full_mnn", "FULL", "MNN", accepted_full, release_id=release_id)
-    make_run(preds / "full_ratio", "FULL", "MNN_RATIO", accepted_full, release_id=release_id)
+    make_run(preds / "full_mnn", "FULL", "MNN", accepted_full, release, release_id=release_id)
+    make_run(preds / "full_ratio", "FULL", "MNN_RATIO", accepted_full, release, release_id=release_id)
     if accepted_rand is not None:
-        make_run(preds / "rand_mnn", "RAND_1", "MNN", accepted_rand, release_id=release_id)
-        make_run(preds / "rand_ratio", "RAND_1", "MNN_RATIO", accepted_rand, release_id=release_id)
+        make_run(preds / "rand_mnn", "RAND_1", "MNN", accepted_rand, release, release_id=release_id)
+        make_run(preds / "rand_ratio", "RAND_1", "MNN_RATIO", accepted_rand, release, release_id=release_id)
     return release, reference, preds
 
 
@@ -232,6 +265,7 @@ def test_query_order_mismatch_is_rejected(tmp_path):
     rows = read_csv(path)
     rows[0], rows[1] = rows[1], rows[0]
     _write_csv(path, rows, list(rows[0]))
+    refresh_run(preds / "full_mnn")
     with pytest.raises(ValueError, match="顺序"):
         evaluate(release, preds, reference, tmp_path / "out")
 
@@ -248,6 +282,7 @@ def test_ratio_not_subset_of_mnn_fails_check(tmp_path):
     _write_csv(run / "pairs.csv", [{"condition_id": "FULL", "method_id": "MNN_RATIO",
                                     "query_id": "q2", "candidate_id": "u2"}],
                ["condition_id", "method_id", "query_id", "candidate_id"])
+    refresh_run(run)
     evaluate(release, preds, reference, tmp_path / "out")
     checks = json.loads((tmp_path / "out" / "checks.json").read_text(encoding="utf-8"))
     assert checks["status"] == "FAIL"
@@ -294,13 +329,15 @@ def test_fit_diagnostics_supply_inlier_count(tmp_path):
     release, reference, preds = build_case(
         tmp_path, accepted_full={"q1": "u1", "q2": None, "q3": None})
     run = preds / "full_ratio"
+    pairs_sha = digest((run / "pairs.csv").read_bytes())
     (run / "transform.json").write_text(json.dumps({
         "direction": "US_TO_MR", "unit": "index_unit", "status": "SUCCESS",
         "R": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        "t": [0.0, 0.0, 0.0],
+        "t": [0.0, 0.0, 0.0], "pairs_sha256": pairs_sha,
     }), encoding="utf-8")
     (run / "fit_diagnostics.json").write_text(json.dumps({
         "status": "SUCCESS", "final_inlier_count": 2, "pair_count": 1,
+        "pairs_sha256": pairs_sha,
     }), encoding="utf-8")
     evaluate(release, preds, reference, tmp_path / "out")
     rows = read_csv(tmp_path / "out" / "metrics.csv")

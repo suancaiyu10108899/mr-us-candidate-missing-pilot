@@ -21,9 +21,12 @@ import csv
 import hashlib
 import json
 import math
+import statistics
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from mrus_missing.preparation.files import check_seal, digest, read_verified
 
 from .scoring import (
     FIVE_CLASSES,
@@ -114,9 +117,9 @@ def _git_commit() -> str | None:
 # --------------------------------------------------------------------------
 # 读取 release / reference / predictions
 # --------------------------------------------------------------------------
-def _load_points(path: Path) -> list[dict]:
+def _parse_points(text: str, name: str) -> list[dict]:
     rows = []
-    for row in _read_csv(path):
+    for row in csv.DictReader(text.splitlines()):
         rows.append({
             "point_id": row["point_id"],
             "descriptor_row": int(row["descriptor_row"]),
@@ -124,22 +127,45 @@ def _load_points(path: Path) -> list[dict]:
         })
     rows.sort(key=lambda item: item["descriptor_row"])
     if [r["descriptor_row"] for r in rows] != list(range(len(rows))):
-        raise ValueError(f"{path.name}: descriptor_row 未覆盖 0..N-1")
+        raise ValueError(f"{name}: descriptor_row 未覆盖 0..N-1")
     if len({r["point_id"] for r in rows}) != len(rows):
-        raise ValueError(f"{path.name}: point_id 重复")
+        raise ValueError(f"{name}: point_id 重复")
     return rows
 
 
+def _load_points(path: Path) -> list[dict]:
+    return _parse_points(path.read_text(encoding="utf-8"), path.name)
+
+
 def _load_release(release: Path) -> dict:
-    manifest = _read_json(release / "manifest.json")
-    conditions_doc = _read_json(release / "conditions.json")
+    """核验 manifest 封条、逐文件载荷与必需文件，再读取。"""
+    manifest_path = release / "manifest.json"
+    manifest_bytes = manifest_path.read_bytes()
+    manifest = json.loads(manifest_bytes.decode("utf-8"))
+    check_seal(manifest)
+    if manifest.get("schema_version") != "mrus-input-release/1":
+        raise ValueError(f"release: 未知 schema_version {manifest.get('schema_version')!r}")
+    files = manifest.get("files")
+    if not isinstance(files, dict) or not files:
+        raise ValueError("release: manifest 缺少 files 清单")
+    for name, spec in files.items():
+        if not isinstance(spec, dict):
+            raise ValueError(f"release: files[{name}] 不是文件描述")
+        read_verified(release, spec)
+    required = {"mri_points.csv", "us_points.csv", "conditions.json", "experiment.json"}
+    if not required <= set(files):
+        raise ValueError(f"release: 缺少必需文件 {sorted(required - set(files))}")
+
+    conditions_text = read_verified(release, files["conditions.json"]).decode("utf-8")
+    conditions_doc = json.loads(conditions_text)
     conditions = {item["condition_id"]: item for item in conditions_doc["conditions"]}
-    mri = _load_points(release / "mri_points.csv")
-    us = _load_points(release / "us_points.csv")
+    mri = _parse_points(read_verified(release, files["mri_points.csv"]).decode("utf-8"), "mri_points.csv")
+    us = _parse_points(read_verified(release, files["us_points.csv"]).decode("utf-8"), "us_points.csv")
     return {
         "release_id": manifest["release_id"],
-        "manifest_sha256": _sha256(release / "manifest.json"),
-        "conditions_sha256": _sha256(release / "conditions.json"),
+        "manifest_sha256": digest(manifest_bytes),
+        "conditions_sha256": digest(read_verified(release, files["conditions.json"])),
+        "experiment_sha256": digest(read_verified(release, files["experiment.json"])),
         "conditions": conditions,
         "mri": mri,
         "us": us,
@@ -147,23 +173,49 @@ def _load_release(release: Path) -> dict:
     }
 
 
-def _load_reference(reference: Path) -> dict:
-    doc = _read_json(reference / "reference.json")
+def _load_reference(reference: Path, release: dict) -> dict:
+    """核验参考包封条、载荷，以及它绑定的输入是否就是本次评分用的输入。"""
+    manifest_path = reference / "reference_manifest.json"
+    manifest_bytes = manifest_path.read_bytes()
+    manifest = json.loads(manifest_bytes.decode("utf-8"))
+    check_seal(manifest)
+    if manifest.get("schema_version") != "mrus-evaluation-reference/1":
+        raise ValueError(f"reference: 未知 schema_version {manifest.get('schema_version')!r}")
+    if manifest.get("input_manifest_sha256") != release["manifest_sha256"]:
+        raise ValueError("reference: 绑定的输入包与本轮 release 不一致")
+    files = manifest.get("files")
+    if not isinstance(files, dict) or not files:
+        raise ValueError("reference: manifest 缺少 files 清单")
+    for name, spec in files.items():
+        read_verified(reference, spec)
+    for name in ("reference.json", "correspondences.csv"):
+        if name not in files:
+            raise ValueError(f"reference: 缺少 {name}")
+
+    doc = json.loads(read_verified(reference, files["reference.json"]).decode("utf-8"))
     if doc.get("direction") != "US_TO_MR":
         raise ValueError("reference direction 必须是 US_TO_MR")
+    mri_ids = {p["point_id"] for p in release["mri"]}
+    us_ids = {p["point_id"] for p in release["us"]}
     pairs = {}
-    for row in _read_csv(reference / "correspondences.csv"):
+    for row in csv.DictReader(read_verified(reference, files["correspondences.csv"]).decode("utf-8").splitlines()):
         query_id, candidate_id = row["query_id"], row["candidate_id"]
         if query_id in pairs:
             raise ValueError(f"reference: query {query_id} 有多个对应")
+        if query_id not in mri_ids:
+            raise ValueError(f"reference: 未知 MRI 查询 {query_id}")
+        if candidate_id not in us_ids:
+            raise ValueError(f"reference: 未知 US 候选 {candidate_id}")
         pairs[query_id] = candidate_id
+    if len(set(pairs.values())) != len(pairs):
+        raise ValueError("reference: 存在一对多的参照对应")
     return {
         "R": [[float(x) for x in row] for row in doc["R"]],
         "t": [float(x) for x in doc["t"]],
         "tolerance": float(doc.get("correctness_threshold", 0.5)),
         "pairs": pairs,
         "probes": [[float(x) for x in row] for row in doc.get("probes_us", [])],
-        "manifest_sha256": _sha256(reference / "reference_manifest.json"),
+        "manifest_sha256": digest(manifest_bytes),
     }
 
 
@@ -179,7 +231,8 @@ def _discover_runs(predictions: Path) -> list[Path]:
 def _load_run(run_dir: Path) -> dict:
     run = _read_json(run_dir / "RUN.json")
     queries = _read_csv(run_dir / "queries.csv")
-    pairs = _read_csv(run_dir / "pairs.csv")
+    pairs_bytes = (run_dir / "pairs.csv").read_bytes()
+    pairs = list(csv.DictReader(pairs_bytes.decode("utf-8").splitlines()))
     condition = run.get("condition_id")
     method = run.get("method_id")
     if method not in METHODS:
@@ -193,6 +246,18 @@ def _load_run(run_dir: Path) -> dict:
     if not transform_path.is_file() and (fit_dir / "transform.json").is_file():
         transform_path = fit_dir / "transform.json"
         diag_path = fit_dir / "fit_diagnostics.json"
+    transform = _read_json(transform_path) if transform_path.is_file() else None
+    diagnostics = _read_json(diag_path) if diag_path.is_file() else None
+    # 拟合产物必须绑定本 run 的实际 pairs，而不是"任意一次拟合"
+    pairs_sha256 = digest(pairs_bytes)
+    if transform is not None:
+        if transform.get("pairs_sha256") != pairs_sha256:
+            raise ValueError(f"{run_dir.name}: transform 的 pairs_sha256 与本 run 的 pairs.csv 不符")
+        if diagnostics is not None:
+            if diagnostics.get("pairs_sha256") not in (None, pairs_sha256):
+                raise ValueError(f"{run_dir.name}: fit_diagnostics 的 pairs_sha256 与本 run 不符")
+            if diagnostics.get("pair_count") not in (None, len(pairs)):
+                raise ValueError(f"{run_dir.name}: fit_diagnostics 的 pair_count 与本 run 不符")
     return {
         "dir": run_dir,
         "run": run,
@@ -201,8 +266,9 @@ def _load_run(run_dir: Path) -> dict:
         "method_id": method,
         "queries": queries,
         "pairs": pairs,
-        "transform": _read_json(transform_path) if transform_path.is_file() else None,
-        "fit_diagnostics": _read_json(diag_path) if diag_path.is_file() else None,
+        "pairs_sha256": pairs_sha256,
+        "transform": transform,
+        "fit_diagnostics": diagnostics,
         "run_sha256": _sha256(run_dir / "RUN.json"),
     }
 
@@ -212,8 +278,36 @@ def _load_run(run_dir: Path) -> dict:
 # --------------------------------------------------------------------------
 def _validate_run(run: dict, release: dict, query_ids: list[str]) -> None:
     name = run["dir"].name
-    if run["run"].get("release_id") != release["release_id"]:
+    document = run["run"]
+    if document.get("status") != "SUCCESS":
+        raise ValueError(f"{name}: 运行状态为 {document.get('status')!r}，失败或未完成的预测不能评分")
+    if document.get("protocol_version") != "1.0":
+        raise ValueError(f"{name}: protocol_version 不是 1.0")
+    if document.get("release_id") != release["release_id"]:
         raise ValueError(f"{name}: release_id 与输入包不一致")
+    expected_inputs = {
+        "verified_release_manifest_file": release["manifest_sha256"],
+        "verified_conditions_file": release["conditions_sha256"],
+        "verified_experiment_file": release["experiment_sha256"],
+    }
+    declared = document.get("input_sha256") or {}
+    for key, expected in expected_inputs.items():
+        if declared.get(key) != expected:
+            raise ValueError(f"{name}: RUN.input_sha256.{key} 与本轮输入不符")
+    outputs = document.get("output_sha256") or {}
+    for fname in ("queries.csv", "pairs.csv", "match_diagnostics.json"):
+        actual = digest((run["dir"] / fname).read_bytes())
+        if outputs.get(fname) != actual:
+            raise ValueError(f"{name}: {fname} 与 RUN.output_sha256 不符（文件被改过）")
+    diagnostics_path = run["dir"] / "match_diagnostics.json"
+    if diagnostics_path.is_file():
+        diagnostics = _read_json(diagnostics_path)
+        for key, expected in (("condition_id", run["condition_id"]),
+                              ("method_id", run["method_id"]),
+                              ("release_id", release["release_id"]),
+                              ("protocol_version", "1.0")):
+            if diagnostics.get(key) != expected:
+                raise ValueError(f"{name}: match_diagnostics.{key} 与本 run 身份不一致")
     if run["condition_id"] not in release["conditions"]:
         raise ValueError(f"{name}: 未知 condition_id {run['condition_id']}")
     if len(run["queries"]) != len(query_ids):
@@ -246,6 +340,31 @@ def _truthy(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() in ("true", "1")
+
+
+def _validate_pairs(run: dict, release: dict) -> None:
+    """在转换成集合之前检查行级身份：重复、越界、范围。"""
+    name = run["dir"].name
+    keep = set(release["conditions"][run["condition_id"]]["keep_ids"])
+    seen: set[tuple[str, str]] = set()
+    query_ids: set[str] = set()
+    for row in run["pairs"]:
+        query_id, candidate_id = row.get("query_id"), row.get("candidate_id")
+        if not query_id or not candidate_id:
+            raise ValueError(f"{name}: pairs.csv 有空标识")
+        if (query_id, candidate_id) in seen:
+            raise ValueError(f"{name}: pairs.csv 有重复配对 {query_id}->{candidate_id}")
+        seen.add((query_id, candidate_id))
+        if query_id in query_ids:
+            raise ValueError(f"{name}: pairs.csv 中 query {query_id} 出现多次")
+        query_ids.add(query_id)
+        if candidate_id not in keep:
+            raise ValueError(f"{name}: 候选 {candidate_id} 不在条件 {run['condition_id']} 的保留集合内")
+    for query in run["queries"]:
+        if _truthy(query.get("accepted")):
+            candidate_id = query.get("accepted_candidate_id") or ""
+            if candidate_id not in keep:
+                raise ValueError(f"{name}: 查询 {query['query_id']} 接受了条件外的候选 {candidate_id!r}")
 
 
 # --------------------------------------------------------------------------
@@ -319,11 +438,10 @@ def _fit_metrics(run: dict, reference: dict) -> dict:
     matrix_valid = None
     probes = reference["probes"]
     errors = []
-    if status == "SUCCESS" and transform.get("R") is not None and transform.get("t") is not None:
-        rotation = [[float(x) for x in row] for row in transform["R"]]
-        translation = [float(x) for x in transform["t"]]
+    if status == "SUCCESS":
+        rotation, translation = _require_success_transform(transform)
         matrix_valid = _matrix_valid(rotation, translation)
-        if probes and matrix_valid:
+        if probes:
             for probe in probes:
                 mapped = [sum(rotation[i][j] * probe[j] for j in range(3)) + translation[i] for i in range(3)]
                 truth = [sum(reference["R"][i][j] * probe[j] for j in range(3)) + reference["t"][i] for i in range(3)]
@@ -332,10 +450,30 @@ def _fit_metrics(run: dict, reference: dict) -> dict:
         "fit_status": status,
         "inlier_count": _inlier_count(transform, run.get("fit_diagnostics")),
         "probe_mean": sum(errors) / len(errors) if errors else None,
-        "probe_median": sorted(errors)[len(errors) // 2] if errors else None,
+        "probe_median": statistics.median(errors) if errors else None,
         "probe_max": max(errors) if errors else None,
         "matrix_valid": matrix_valid,
     }
+
+
+def _require_success_transform(transform: dict) -> tuple[list, list]:
+    """SUCCESS 必须给出有限、形状正确、proper rotation 的 US_TO_MR 变换。"""
+    if transform.get("direction") != "US_TO_MR":
+        raise ValueError(f"transform.direction={transform.get('direction')!r}，必须是 US_TO_MR")
+    if transform.get("unit") != "index_unit":
+        raise ValueError(f"transform.unit={transform.get('unit')!r}，必须是 index_unit")
+    rotation_raw, translation_raw = transform.get("R"), transform.get("t")
+    if rotation_raw is None or translation_raw is None:
+        raise ValueError("transform 状态为 SUCCESS 但 R/t 为空")
+    rotation = [[float(x) for x in row] for row in rotation_raw]
+    translation = [float(x) for x in translation_raw]
+    if len(rotation) != 3 or any(len(row) != 3 for row in rotation) or len(translation) != 3:
+        raise ValueError("transform 的 R/t 形状不是 3x3 / 3")
+    if not all(math.isfinite(x) for row in rotation for x in row) or not all(math.isfinite(x) for x in translation):
+        raise ValueError("transform 含非有限值")
+    if not _matrix_valid(rotation, translation):
+        raise ValueError("transform 不是 proper rotation（det(R) 必须为 +1 且 R 正交）")
+    return rotation, translation
 
 
 def _inlier_count(transform: dict, diagnostics: dict | None) -> int | None:
@@ -356,7 +494,7 @@ def _matrix_valid(rotation: list, translation: list) -> bool:
     if not (np.isfinite(R).all() and np.isfinite(t).all()):
         return False
     return bool(np.abs(R.T @ R - np.eye(3)).max() <= MATRIX_TOLERANCE
-                and abs(abs(np.linalg.det(R)) - 1.0) <= MATRIX_TOLERANCE)
+                and abs(float(np.linalg.det(R)) - 1.0) <= MATRIX_TOLERANCE)
 
 
 # --------------------------------------------------------------------------
@@ -368,7 +506,7 @@ def evaluate(release: Path, predictions: Path, reference: Path, output: Path) ->
     if output.exists():
         raise ValueError("output 已存在；每次评价用新的 run 目录")
     rel = _load_release(Path(release))
-    ref = _load_reference(Path(reference))
+    ref = _load_reference(Path(reference), rel)
     run_dirs = _discover_runs(Path(predictions))
     query_ids = [p["point_id"] for p in rel["mri"]]
 
@@ -376,6 +514,7 @@ def evaluate(release: Path, predictions: Path, reference: Path, output: Path) ->
     for run_dir in run_dirs:
         run = _load_run(run_dir)
         _validate_run(run, rel, query_ids)
+        _validate_pairs(run, rel)
         key = (run["condition_id"], run["method_id"])
         if key in keys:
             raise ValueError(f"重复的 run：{key[0]}/{key[1]}")
@@ -565,9 +704,12 @@ def summarize(metrics: Path, query_evaluation: Path, output: Path) -> dict:
     output = Path(output)
     if not metrics_path.is_file() or not query_path.is_file():
         raise ValueError("metrics 或 query_evaluation 不存在")
+    if output.exists():
+        raise ValueError(f"{output} 已存在；报告写入新目录，不覆盖历史输出")
     rows = _read_csv(metrics_path)
     queries = _read_csv(query_path)
-    output.mkdir(parents=True, exist_ok=True)
+    _validate_summary_sources(rows, queries)
+    output.mkdir(parents=True, exist_ok=False)
     lines = ["# 候选缺失预实验：评价摘要", "",
              f"- 行数（条件×方法）：{len(rows)}",
              f"- 查询记录：{len(queries)}", "",
@@ -585,3 +727,27 @@ def summarize(metrics: Path, query_evaluation: Path, output: Path) -> dict:
     (output / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     return summary
+
+
+def _validate_summary_sources(rows: list[dict], queries: list[dict]) -> None:
+    """metrics 与逐查询评价必须来自同一份有效评价，不能混源。"""
+    if not rows or not queries:
+        raise ValueError("metrics 或 query_evaluation 为空")
+    keys = [(row.get("condition_id"), row.get("method_id")) for row in rows]
+    if len(set(keys)) != len(keys):
+        raise ValueError("metrics 含重复的条件×方法行")
+    counts: dict[tuple[str, str], int] = {}
+    for query in queries:
+        key = (query.get("condition_id"), query.get("method_id"))
+        counts[key] = counts.get(key, 0) + 1
+    if set(counts) != set(keys):
+        raise ValueError("metrics 与 query_evaluation 的条件×方法集合不一致")
+    for row in rows:
+        key = (row.get("condition_id"), row.get("method_id"))
+        total = int(row["N"])
+        if counts.get(key) != total:
+            raise ValueError(f"{key[0]}/{key[1]}: 查询记录数 {counts.get(key)} != metrics.N {total}")
+        classes = sum(int(row[name]) for name in
+                      ("C", "wrong_present", "rejected_present", "accepted_absent", "rejected_absent"))
+        if classes != total:
+            raise ValueError(f"{key[0]}/{key[1]}: 五类合计 {classes} != N {total}")
