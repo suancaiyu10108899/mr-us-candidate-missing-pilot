@@ -243,6 +243,39 @@ def test_geometry_block_must_match_protocol():
         load_geometry_config(changed)
 
 
+def test_zero_accepted_pairs_produce_failed_artifacts(tmp_path):
+    """An all-rejected match is a legal result: header-only pairs, no model, R/t null."""
+    us = np.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 2.0]])
+    mri = us + np.array([1.0, 1.0, 1.0])
+    directory = tmp_path / "empty-pairs"
+    directory.mkdir()
+    write_points(directory / "us_points.csv", [f"u{i}" for i in range(4)], us)
+    write_points(directory / "mri_points.csv", [f"q{i}" for i in range(4)], mri)
+    write_pairs(directory / "pairs.csv", [])
+    result = run_fit(directory, tmp_path / "out")
+    assert result["status"] == "INSUFFICIENT_MATCHES"
+    assert result["status_detail"] == "NO_ACCEPTED_PAIRS"
+    assert result["inlier_count"] == 0 and result["pair_count"] == 0
+    transform = read_transform(tmp_path / "out")
+    assert transform["status"] == "INSUFFICIENT_MATCHES"
+    assert transform["R"] is None and transform["t"] is None
+    rows = list(csv.DictReader((tmp_path / "out" / "inliers.csv").read_text(encoding="utf-8").splitlines()))
+    assert rows == []
+    diagnostics = json.loads((tmp_path / "out" / "fit_diagnostics.json").read_text(encoding="utf-8"))
+    assert diagnostics["pair_count"] == 0 and diagnostics["status_detail"] == "NO_ACCEPTED_PAIRS"
+
+
+def test_corrupt_pairs_csv_is_still_rejected(tmp_path):
+    """Only a header-only table is legal; a broken CSV stays an input error."""
+    (tmp_path / "pairs.csv").write_text("", encoding="utf-8")
+    with pytest.raises(ValueError):
+        fit(tmp_path / "pairs.csv", tmp_path / "mri.csv", tmp_path / "us.csv", CONFIG, tmp_path / "out")
+    (tmp_path / "pairs.csv").write_text("query,candidate\nq0,u0\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        fit(tmp_path / "pairs.csv", tmp_path / "mri.csv", tmp_path / "us.csv", CONFIG, tmp_path / "out")
+    assert not (tmp_path / "out").exists()
+
+
 def test_inliers_never_exceed_threshold(published, tmp_path):
     run_fit(published["directory"], tmp_path / "out")
     diagnostics = json.loads((tmp_path / "out" / "fit_diagnostics.json").read_text(encoding="utf-8"))

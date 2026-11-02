@@ -14,7 +14,7 @@
 
 ## 输入与输出
 
-- 输入 `pairs.csv`：B 的接受配对，需 `query_id`、`candidate_id`（其余列忽略、按文件顺序保留）。
+- 输入 `pairs.csv`：B 的接受配对，需 `query_id`、`candidate_id`（其余列忽略、按文件顺序保留）。全部被拒绝时 B 写出"只有合法表头"的空表，这是正常结果而非坏输入：fit 会产出 `INSUFFICIENT_MATCHES / NO_ACCEPTED_PAIRS` 的失败产物；无表头或缺字段的 CSV 仍按输入错误拒绝。
 - 输入 `mri_points.csv` / `us_points.csv`：`point_id,i,j,k`，单位 index_unit。
 - 输入 `config`：`configs/experiment-v1.json`，`geometry` 块必须与协议 v1 **完全一致**，否则按输入错误拒绝（不改阈值、不回落默认值）。
 - 输出（新建目录，已存在即拒绝，不覆盖历史运行）：
@@ -35,7 +35,8 @@
 | 状态 | 触发条件 | 细码 |
 |---|---|---|
 | `SUCCESS` | 最终内点 ≥4、两端秩 ≥2 | — |
-| `INSUFFICIENT_MATCHES` | 配对数 <3 | `TOO_FEW_PAIRS` |
+| `INSUFFICIENT_MATCHES` | 0 对（全部匹配被拒绝） | `NO_ACCEPTED_PAIRS` |
+| `INSUFFICIENT_MATCHES` | 配对数 1–2 | `TOO_FEW_PAIRS` |
 | `INSUFFICIENT_MATCHES` | 最终内点 <4 | `INSUFFICIENT_INLIERS` |
 | `DEGENERATE` | 全部样本秩 <2 | `ALL_SAMPLES_DEGENERATE` |
 | `DEGENERATE` | 重拟合所用内点秩 <2 | `REFIT_DEGENERATE` |
@@ -80,6 +81,8 @@
 | 共线退化 | `test_collinear_points_are_degenerate` |
 | 共面非共线可用 | `test_coplanar_but_not_collinear_is_accepted` |
 | 不足 4 对 | `test_fewer_than_four_pairs_is_insufficient` |
+| 零接受配对（空表）仍出失败产物 | `test_zero_accepted_pairs_produce_failed_artifacts` |
+| 损坏 CSV 仍拒绝 | `test_corrupt_pairs_csv_is_still_rejected` |
 | 最终重拟合后内点不足 | `test_three_consistent_pairs_among_outliers_is_insufficient` |
 | 同 seed 可复现 | `test_same_seed_is_reproducible` |
 | 未知 ID 拒绝 | `test_unknown_candidate_is_rejected` |

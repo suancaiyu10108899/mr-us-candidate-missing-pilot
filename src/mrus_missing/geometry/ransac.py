@@ -76,6 +76,12 @@ def estimate(us_points: np.ndarray, mr_points: np.ndarray,
         "input_mri_rank": rank_of(dst),
     }
 
+    if count == 0:
+        diagnostics["status_detail"] = "NO_ACCEPTED_PAIRS"
+        return Estimate(INSUFFICIENT_MATCHES, "NO_ACCEPTED_PAIRS",
+                        residuals=np.zeros(0, dtype=FLOAT), inliers=np.zeros(0, bool),
+                        diagnostics=diagnostics)
+
     if count < sample_size:
         diagnostics["status_detail"] = "TOO_FEW_PAIRS"
         return Estimate(INSUFFICIENT_MATCHES, "TOO_FEW_PAIRS",

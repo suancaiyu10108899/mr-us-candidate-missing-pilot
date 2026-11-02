@@ -46,15 +46,28 @@ def read_points_csv(path: Path) -> tuple[list[str], np.ndarray]:
 
 
 def read_pairs_csv(path: Path) -> tuple[list[dict[str, str]], str]:
-    """Read B's accepted pairs and return the file digest used for identity."""
+    """Read B's accepted pairs and return the file digest used for identity.
+
+    An all-rejected match is a legal result: B then writes a header-only CSV, which
+    must reach the fitter as "no accepted pairs" instead of a corrupt input error.
+    A file without a header, or without the required columns, is still rejected.
+    """
     require(path.is_file(), f"missing pairs file: {path}")
     blob = path.read_bytes()
-    rows = list(csv.DictReader(blob.decode("utf-8").splitlines()))
-    require(rows, "pairs CSV is empty")
-    require(all("query_id" in row and "candidate_id" in row for row in rows),
+    try:
+        text = blob.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError("pairs CSV must be UTF-8") from error
+    lines = text.splitlines()
+    require(bool(lines), "pairs CSV is empty")
+    reader = csv.DictReader(lines)
+    require(reader.fieldnames is not None, "pairs CSV needs a header row")
+    require({"query_id", "candidate_id"} <= set(reader.fieldnames),
             "pairs CSV needs query_id and candidate_id")
+    rows = list(reader)
     for row in rows:
-        require(bool(row["query_id"]) and bool(row["candidate_id"]), "empty pair identifier")
+        require(bool(row.get("query_id")) and bool(row.get("candidate_id")),
+                "empty pair identifier")
     queries = [row["query_id"] for row in rows]
     require(len(set(queries)) == len(queries), "duplicate query_id in pairs")
     return rows, hashlib.sha256(blob).hexdigest()

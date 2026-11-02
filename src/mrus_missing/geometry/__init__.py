@@ -53,8 +53,10 @@ def fit(pairs: Path, mri_points: Path, us_points: Path,
     for row in rows:
         require(row["query_id"] in mri_index, f"unknown MRI query: {row['query_id']}")
         require(row["candidate_id"] in us_index, f"unknown US candidate: {row['candidate_id']}")
-    us_rows = np.asarray([us_xyz[us_index[row["candidate_id"]]] for row in rows], dtype=np.float64)
-    mr_rows = np.asarray([mri_xyz[mri_index[row["query_id"]]] for row in rows], dtype=np.float64)
+    us_rows = np.asarray([us_xyz[us_index[row["candidate_id"]]] for row in rows],
+                         dtype=np.float64).reshape(-1, 3)
+    mr_rows = np.asarray([mri_xyz[mri_index[row["query_id"]]] for row in rows],
+                         dtype=np.float64).reshape(-1, 3)
 
     result = estimate(us_rows, mr_rows, settings)
     commit = source_commit()
