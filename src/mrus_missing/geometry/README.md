@@ -90,6 +90,11 @@
 | 配置块必须一致 | `test_geometry_block_must_match_protocol` |
 | 内点不超阈值 | `test_inliers_never_exceed_threshold` |
 
-## 与 A 的接口变动（需 A 确认）
+## 与 A 的公共接口（已按 A 的新方案落地）
 
-`fit` 从"未实现占位"变为真实实现，因此 `tests/test_bootstrap.py` 中把 `fit` 当未实现的两处参数被移除（`test_production_shell_fails_without_reading_or_writing`、`test_cli_unimplemented_exit_and_no_outputs`）。`cli.py` 的 `status.fit_evaluate_matrix` 与 help 文案仍写 `NOT_IMPLEMENTED`，属 A 维护的公共接口，留待 A 更新。
+`fit` 从"未实现占位"变为真实实现。`tests/test_bootstrap.py` 的冲突按 A 的约定采用其新版完整文件（保留所有按能力判断的检查，不再由 C 删除断言）；`cli.py` 的 `status.stage_apis_in_this_checkout` 由 A 的 `capabilities.py` 分别报告 `fit` / `evaluate` / `summarize`。本 PR 不含对 A 公共测试的最终取舍，合并后以 base 为准。
+
+## 状态
+
+代码与测试见上；PR #6 的 head 为 `1898735`，CI `fixture-tests` 通过，等待非作者复核与合并。正式 FULL 与 14 行矩阵均未运行（`NOT_RUN`）。
+
